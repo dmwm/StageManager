@@ -28,6 +28,17 @@ from WMCore.Lexicon import cmsname
 from WMCore.Wrappers import JsonWrapper
 from xml.dom import minidom
 
+from xml.sax import parseString
+from xml.sax.handler import ContentHandler 
+
+class PhEDExHandler(ContentHandler):
+    def __init__(self, function_dict):
+        self.function_dict = function_dict
+        
+    def startElement(self, name, attrs):
+        if name in self.function_dict.keys():
+            self.function_dict[name](attrs)
+      
 def do_options():
     op = OptionParser()
     op.add_option("-u", "--url",
@@ -118,17 +129,19 @@ def process_files(options):
         #name='/store/mc/Summer09/MinBias900GeV/AODSIM/MC_31X_V3_AODSIM-v1/0021/F0C49EA2-FA88-DE11-B886-003048341A94.root' 
         #id='29451522' origin_node='T2_US_Wisconsin' time_create='1250711698.34438'><replica group='DataOps' node_id='19' se='srm-cms.gridpp.rl.ac.uk' custodial='y' subscribed='y' node='T1_UK_RAL_MSS' time_create=''/></file>
         
-        #TODO: coroutine here #26
-        dom = minidom.parseString(data)
-        for stgfile in dom.getElementsByTagName('file'):
-            checksum = stgfile.getAttribute('checksum')
-            f ={'_id': stgfile.getAttribute('name'),
-                'bytes': int(stgfile.getAttribute('bytes')),
+        def file_sax_test(attrs):
+            checksum = attrs.get('checksum')
+            f ={'_id': attrs.get('name'),
+                'bytes': int(attrs.get('bytes')),
                 'checksum': {checksum.split(':')[0]: checksum.split(':')[1]},
                 'state': 'new',
                 'retry_count': []
                 }
             db.queue(f, timestamp = True)
+        
+        saxHandler = PhEDExHandler({'file': file_sax_test})
+        parseString(data, saxHandler)
+        
         db.commit()
         
 
