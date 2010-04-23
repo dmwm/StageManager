@@ -3,7 +3,7 @@ The CentralAgent is used to perform routine maintenace (e.g. compaction) on the
 central CouchDB instance. This is not needed at the sites because the 
 StagerAgent triggers compaction as part of its life cycle.
 
-Run as a cron??
+Run as a cron or daemon??
 '''
 from optparse import OptionParser
 from WMCore.Database.CMSCouch import CouchServer
@@ -36,7 +36,7 @@ def do_options():
               action="store_true",
               default=False, 
               help="Load settings from the configuration DB")
-    #TODO: persist options to local couch, pick them up 
+    #TODO: persist options to local couch, pick them up #29
     options, args = op.parse_args()
     if options.load:
         # Load options from the DB
@@ -60,7 +60,7 @@ def do_options():
 
 opts, args = do_options()
 server = CouchServer(opts.dburl)
-
+#TODO: This should be a deamon #27
 for site in opts.sites:
     db_name = opts.site.lower()
     db = server.connectDatabase(db_name)

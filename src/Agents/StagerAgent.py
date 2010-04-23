@@ -49,7 +49,7 @@ def do_options():
                   dest="stager",
                   default="FakeStager",
                   help="name of stager")
-    #TODO: persist options to local couch, pick them up 
+    #TODO: persist options to local couch, pick them up #29
     options, args = op.parse_args()
     if options.load:
         # Load options from the DB
@@ -107,9 +107,10 @@ server.replicate('http://%s/%s' % (opts.local,db_name),
 factory = WMFactory('stager_factory', 'Agents.Stagers')
 stager = factory.loadObject(opts.stager, args=[db, opts], listFlag = True)
 db.compact(['stagemanager'])
-#TODO: This should be a deamon
+
+#TODO: This should be a deamon #27
 while True:
-    #TODO: hit view for size of backlog, stop replication if over some limit
+    #TODO: hit view for size of backlog, stop replication if over some limit #28
     data = db.loadView('stagemanager', 'file_state', {'reduce':False, 'include_docs':True})
     if len(data['rows']) > 0:
         data = sanitise_rows(data["rows"])
@@ -121,7 +122,7 @@ while True:
                 lower = 0
                 upper = opts.maxstage
                 while c < len(data):
-                    #TODO: subprocess?
+                    #TODO: subprocess #31
                     stager(data[lower:upper])
                     c = upper
                     lower = upper - 1

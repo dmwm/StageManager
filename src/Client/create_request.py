@@ -26,7 +26,6 @@ from WMCore.Services.Requests import Requests
 from WMCore.Database.CMSCouch import CouchServer
 from WMCore.Lexicon import cmsname
 from WMCore.Wrappers import JsonWrapper
-# to do - replace this with an evans co-routine....
 from xml.dom import minidom
 
 def do_options():
@@ -98,9 +97,9 @@ def process_files(options):
     phedex = Requests(url='cmsweb.cern.ch', dict={'accept_type':'text/xml'})
 
     couch = CouchServer(options.couch)
-    #TODO: coroutine here
+    #TODO: subprocess here per site? #26
     for node in sites:
-        #TODO: use logger
+        #TODO: use logger #23
         if options.verbose:
             print 'Creating stage-in requests for %s' % node
         db = couch.connectDatabase(node.replace('_MSS', '').lower())
@@ -114,11 +113,12 @@ def process_files(options):
             print he.result
             print he.reason
             print he.message
-        # to do - replace this with an evans co-routine....
+            
         #<file checksum='cksum:2470571517' bytes='1501610356' 
         #name='/store/mc/Summer09/MinBias900GeV/AODSIM/MC_31X_V3_AODSIM-v1/0021/F0C49EA2-FA88-DE11-B886-003048341A94.root' 
         #id='29451522' origin_node='T2_US_Wisconsin' time_create='1250711698.34438'><replica group='DataOps' node_id='19' se='srm-cms.gridpp.rl.ac.uk' custodial='y' subscribed='y' node='T1_UK_RAL_MSS' time_create=''/></file>
         
+        #TODO: coroutine here #26
         dom = minidom.parseString(data)
         for stgfile in dom.getElementsByTagName('file'):
             checksum = stgfile.getAttribute('checksum')

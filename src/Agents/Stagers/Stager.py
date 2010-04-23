@@ -7,7 +7,7 @@ class Stager:
         responsible for marking the files it stages as staged/failed.
         """
         self.couch = db
-        # TODO: replace with Logger
+        # TODO: replace with Logger #23
         self.options = options
         
     def __call__(self, files=[]):
@@ -22,7 +22,7 @@ class Stager:
         self.mark_good(staged)
         self.mark_incomplete(incomplete)
         self.mark_failed(failed)
-        #TODO: calculate stats
+        #TODO: calculate stats #24
         self.couch.commit()
         
     def command(self, files):
