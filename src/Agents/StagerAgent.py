@@ -7,9 +7,227 @@ from optparse import OptionParser
 from WMCore.Database.CMSCouch import CouchServer
 from WMCore.Lexicon import cmsname
 from WMCore.WMFactory import WMFactory
+from WMCore.Services.Requests import Requests
+from WMCore.Wrappers import JsonWrapper
+import httplib
+import urllib
 import sys
 import time
+import datetime
+import logging
 
+from xml.sax import parseString
+from xml.sax.handler import ContentHandler 
+
+class PhEDExHandler(ContentHandler):
+    def __init__(self, function_dict):
+        self.function_dict = function_dict
+        
+    def startElement(self, name, attrs):
+        if name in self.function_dict.keys():
+            self.function_dict[name](attrs)
+
+class StageManagerAgent:
+    def __init__(self, site, localdb, remotedb, logger):
+        self.site = site.lower()
+        self.node = site.replace('_Buffer', '_MSS')
+        if not self.node.endswith('_MSS'):
+            self.node += '_MSS'
+
+        self.logger = logger
+            
+        self.localcouch = CouchServer(localdb)
+        self.remotecouch = CouchServer(remotedb)
+        
+        self.logger.info('local databases: %s' % self.localcouch)
+        self.logger.info('remote databases: %s' % self.remotecouch)
+        
+        self.setup_databases()
+        self.initiate_replication()
+        self.save_config()
+        
+        
+        factory = WMFactory('stager_factory', 'Agents.Stagers')
+        db = self.localcouch.connectDatabase('%s_stagequeue' % self.site)
+        self.stager = factory.loadObject(opts.stager, args=[db, self.logger], listFlag = True)
+        
+    def save_config(self):
+        pass
+    
+    def setup_databases(self):
+        # Make sure the databases exist where we expect...
+        for db in ['_stagequeue', '_statistics', '_requests']:
+            db = self.site + db
+            try: 
+                self.localcouch.connectDatabase(db)
+            except httplib.HTTPException, he:
+                self.handleHTTPExcept(he, 'Could not contact %s locally' % db)
+            try:
+                self.remotecouch.connectDatabase(db)
+            except httplib.HTTPException, he:
+                self.handleHTTPExcept(he, 'Could not contact %s remotely' % db)
+            
+        #Push views to the DB
+        db = self.localcouch.connectDatabase('%s_stagequeue' % self.site)
+        views = {"_id":"_design/stagemanager",
+                 "language":"javascript",
+                 "views":{
+                        "retries":{"map":"function(doc) {  emit(doc.retry_count, 1);}",
+                                        "reduce":"function(key, values, rereduce){  return sum(values);}"},
+                        "backlog":{"map":"function(doc) {  emit(doc.state, doc.bytes);}",
+                                   "reduce":"function(key, values, rereduce){  return sum(values);}"},
+                        "file_state":{"map":"function(doc) {  emit(doc.state, 1);}",
+                                   "reduce":"function(key, values, rereduce){  return sum(values);}"},
+                        "request":{"map":"function(doc) {  emit(doc.request_id, 1);}",
+                                   "reduce":"function(key, values, rereduce){  return sum(values);}"}
+                        }
+                 }
+        db.commitOne(views)
+        db = self.localcouch.connectDatabase('%s_requests' % self.site)
+        views = {"_id":"_design/stagemanager",
+                 "language":"javascript",
+                 "views":{
+                        "request_state":{"map":"function(doc) {  emit(doc.state, 1);}",
+                                   "reduce":"function(key, values, rereduce){  return sum(values);}"}
+                        }
+                 }
+        db.commitOne(views)
+        
+    def initiate_replication(self):
+        #Set up tasty bi-directional replication
+        dbname = '%s_requests' % (self.site)
+        try:
+            self.localcouch.replicate('http://%s/%s' % (self.remotecouch.url, dbname), 
+                         'http://%s/%s' % (self.localcouch.url, dbname), 
+                         True, True)
+        except httplib.HTTPException, he:
+            self.handleHTTPExcept(he, 'Could not trigger replication for %s' % dbname)
+        try:
+            self.localcouch.replicate('http://%s/%s' % (self.localcouch.url, dbname), 
+                        'http://%s/%s' % (self.remotecouch.url, dbname), 
+                         True, True)
+        except httplib.HTTPException, he:
+            self.handleHTTPExcept(he, 'Could not trigger replication for %s' % dbname)
+        dbname = '%s_statistics' % (self.site)   
+        try:
+            self.localcouch.replicate('http://%s/%s' % (self.localcouch.url, dbname), 
+                        'http://%s/%s' % (self.remotecouch.url, dbname), 
+                         True, True) 
+        except httplib.HTTPException, he:
+            self.handleHTTPExcept(he, 'Could not trigger replication for %s' % dbname)
+            
+    def handleHTTPExcept(self, he, message):
+        self.logger.error(message)
+        self.logger.info(he.status)
+        self.logger.info(he.result)
+        self.logger.info(he.reason)
+        self.logger.info(he.message)
+    
+    def __call__(self):
+        # Probably makes sense for these to be subprocesses.
+        self.proces_requests()
+        self.process_stagequeue()
+
+    def proces_requests(self):
+        db = self.localcouch.connectDatabase('%s_requests' % self.site)
+        # Get requests, mark them as acquired
+        data = {'rows':[]}
+        try:
+            data = db.loadView('stagemanager', 'request_state', {'reduce':False, 'include_docs':True, 'key':'new'})
+        except httplib.HTTPException, he:
+            self.handleHTTPExcept(he, 'could not retrieve request_state view')
+            sys.exit(1) 
+        if len(data['rows']) > 0:
+            all_requests = sanitise_rows(data["rows"])
+            # [{'timestamp': '2010-04-26 17:17:54.166314', '_rev': '1-cd935f55f4bc1ff4b54a2551bf37dc0e', '_id': 'f52a38ae152965593dbdf03a9800828a', 'data': ['/MinBias/Summer09-MC_31X_V3_7TeV-v1/GEN-SIM-RECO', '/QCD_pt_0_15/JobRobot_IDEAL_V9_JobRobot/GEN-SIM-RAW-RECO'], 'state': 'new'}]
+            for request in all_requests:
+                # expand the files associated with the request
+                self.process_files(request['data'], request['_id'])
+                # mark the request as acquired
+                request['state'] = 'acquired'
+                request['accept_timestamp'] = str(datetime.datetime.now())
+                db.queue(request)
+        db.commit(viewlist=['stagemanager/request_state'])
+
+      
+    def process_files(self, stage_data = [], request_id=''):
+        # Need to clean up the input a bit
+        for d in stage_data:
+            # Need to pass in blocks
+            if d.find('#') < 0:
+                stage_data[stage_data.index(d)] = d + '*'
+        
+        phedex = Requests(url='cmsweb.cern.ch', dict={'accept_type':'text/xml'})
+        self.logger.debug('Creating stage-in requests for %s' % self.node)
+        
+        db = self.localcouch.connectDatabase('%s_stagequeue' % self.site)
+        
+        try:
+            data = phedex.get('/phedex/datasvc/xml/prod/filereplicas', {
+                                                    'block':stage_data, 
+                                                    'node': self.node})[0]
+        except httplib.HTTPException, he:
+            self.handleHTTPExcept(he, 'HTTPException for block: %s node: %s' % (data, self.node))
+                
+        #<file checksum='cksum:2470571517' bytes='1501610356' 
+        #name='/store/mc/Summer09/MinBias900GeV/AODSIM/MC_31X_V3_AODSIM-v1/0021/F0C49EA2-FA88-DE11-B886-003048341A94.root' 
+        #id='29451522' origin_node='T2_US_Wisconsin' time_create='1250711698.34438'><replica group='DataOps' node_id='19' se='srm-cms.gridpp.rl.ac.uk' custodial='y' subscribed='y' node='T1_UK_RAL_MSS' time_create=''/></file>
+        
+        def file_sax_test(attrs):
+            checksum = attrs.get('checksum')
+            f ={'_id': attrs.get('name'),
+                'bytes': int(attrs.get('bytes')),
+                'checksum': {checksum.split(':')[0]: checksum.split(':')[1]},
+                'state': 'new',
+                'retry_count': [],
+                'request_id': request_id
+                }
+            try:
+                db.queue(f, timestamp = True, viewlist=['stagemanager/file_state'])
+            except httplib.HTTPException, he:
+                self.handleHTTPExcept(he, 'Could not commit data')
+        
+        saxHandler = PhEDExHandler({'file': file_sax_test})
+        parseString(data, saxHandler)
+        try:
+            db.commit(viewlist=['stagemanager/file_state'])
+        except httplib.HTTPException, he:
+            self.handleHTTPExcept(he, 'Could not commit data')    
+
+    def process_stagequeue(self):
+        db = self.localcouch.connectDatabase('%s_stagequeue' % self.site)
+        #TODO: hit view for size of backlog, stop replication if over some limit #28
+        data = {'rows':[]}
+        try:
+            data = db.loadView('stagemanager', 'file_state', {'reduce':False, 'include_docs':True})
+        except httplib.HTTPException, he:
+            self.handleHTTPExcept(he, 'could not retrieve file_state view')
+            sys.exit(1)
+        if len(data['rows']) > 0:
+            data = sanitise_rows(data["rows"])
+            if len(data) > 0:
+                if opts.maxstage < 0:
+                    self.stager(data)
+                else:
+                    c = 0
+                    lower = 0
+                    upper = opts.maxstage
+                    while c < len(data):
+                        #TODO: subprocess #31
+                        stager(data[lower:upper])
+                        c = upper
+                        lower = upper - 1
+                        upper += opts.maxstage 
+        else:
+            self.logger.info('Nothing to do, sleeping for five minutes')
+            time.sleep(270)            
+        time.sleep(30)
+        logger.debug('compacting database')
+        try:
+            db.compact(['stagemanager'])
+        except httplib.HTTPException, he:
+            self.handleHTTPExcept(he, 'could not compact local database')
+    
 def do_options():
     op = OptionParser()
     op.add_option("-u", "--local-url",
@@ -29,6 +247,11 @@ def do_options():
               action="store_true",
               default=False, 
               help="Be more verbose")
+    op.add_option("-d", "--debug",
+              dest="debug", 
+              action="store_true",
+              default=False, 
+              help="Be extremely verbose - print debugging statements")
     op.add_option("-m", "--maxstage",
               dest="maxstage", 
               default=-1, 
@@ -46,30 +269,39 @@ def do_options():
               default=False, 
               help="Load settings from the configuration DB")
     op.add_option("--stager",
-                  dest="stager",
-                  default="FakeStager",
-                  help="name of stager")
+              dest="stager",
+              default="FakeStager",
+              help="name of stager")
+    
     #TODO: persist options to local couch, pick them up #29
     options, args = op.parse_args()
+    
+    logging.basicConfig(level=logging.WARNING)
+    logger = logging.getLogger('StageManager')
+    if options.verbose:
+        logger.setLevel(logging.INFO)
+    if options.debug:
+        logger.setLevel(logging.DEBUG)
+
+    
     if options.load:
         # Load options from the DB
         pass
 
-    if options.verbose:
-        print options, args
+    logger.info('options: %s, args: %s' % (options, args))
 
     if not cmsname(options.site):
-        print '%s is not a valid CMS name!' % options.site
+        logger.warning('%s is not a valid CMS name!' % options.site)
         sys.exit(101)
     elif not options.site.startswith('T1'):
-        print '%s is not a T1 site' % options.site
+        logger.warning('%s is not a T1 site' % options.site)
         sys.exit(102)
     
     if options.persist:
         # Write the options to the config DB
         pass
     
-    return options, args
+    return options, args, logger
 
 def sanitise_rows(rows):
     sanitised_data = []
@@ -78,56 +310,11 @@ def sanitise_rows(rows):
             sanitised_data.append(i['doc'])
     return sanitised_data
 
-opts, args = do_options()
-server = CouchServer(opts.local)
-db_name = opts.site.lower()
-db = server.connectDatabase(db_name)
-#Push views to the DB
-views = {"_id":"_design/stagemanager",
-         "language":"javascript",
-         "views":{
-                "retries":{"map":"function(doc) {  emit(doc.retry_count, 1);}",
-                                "reduce":"function(key, values, rereduce){  return sum(values);}"},
-                "backlog":{"map":"function(doc) {  emit(doc.state, doc.bytes);}",
-                           "reduce":"function(key, values, rereduce){  return sum(values);}"},
-                "file_state":{"map":"function(doc) {  emit(doc.state, 1);}",
-                           "reduce":"function(key, values, rereduce){  return sum(values);}"}
-                }
-         }
-db.commitOne(views)
-
-#Set up tasty bi-directional replication
-server.replicate('http://%s/%s' % (opts.remote,db_name), 
-                 'http://%s/%s' % (opts.local,db_name), 
-                 True, True)
-server.replicate('http://%s/%s' % (opts.local,db_name), 
-                'http://%s/%s' % (opts.remote,db_name), 
-                 True, True)
-
-factory = WMFactory('stager_factory', 'Agents.Stagers')
-stager = factory.loadObject(opts.stager, args=[db, opts], listFlag = True)
-db.compact(['stagemanager'])
-
-#TODO: This should be a deamon #27
-while True:
-    #TODO: hit view for size of backlog, stop replication if over some limit #28
-    data = db.loadView('stagemanager', 'file_state', {'reduce':False, 'include_docs':True})
-    if len(data['rows']) > 0:
-        data = sanitise_rows(data["rows"])
-        if len(data) > 0:
-            if opts.maxstage < 0:
-                stager(data)
-            else:
-                c = 0
-                lower = 0
-                upper = opts.maxstage
-                while c < len(data):
-                    #TODO: subprocess #31
-                    stager(data[lower:upper])
-                    c = upper
-                    lower = upper - 1
-                    upper += opts.maxstage 
-                
-    time.sleep(30)
-    print 'compacting database'
-    db.compact(['stagemanager'])
+if __name__ == '__main__':
+    opts, args, logger = do_options()
+    
+    agent = StageManagerAgent(opts.site, opts.local, opts.remote, logger)
+    
+    #TODO: This should be a deamon #27
+    while True:
+        agent()

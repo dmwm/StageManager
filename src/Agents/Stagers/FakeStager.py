@@ -1,4 +1,4 @@
-from Agent.Stagers.Stager import Stager
+from Agents.Stagers.Stager import Stager
 import random
 
 class FakeStager(Stager):
