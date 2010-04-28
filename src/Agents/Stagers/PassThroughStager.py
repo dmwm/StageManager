@@ -1,6 +1,6 @@
 from Agents.Stagers.Stager import Stager
 
-class PassThroughStager(object):
+class PassThroughStager(Stager):
     '''
     A stager that just returns that everything it's been given has been staged.
     For testing only.
