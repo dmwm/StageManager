@@ -75,11 +75,11 @@ class StageManagerAgent:
                         "retries":{"map":"function(doc) {  emit(doc.retry_count, 1);}",
                                         "reduce":"function(key, values, rereduce){  return sum(values);}"},
                         "backlog":{"map":"function(doc) {  emit(doc.state, doc.bytes);}",
-                                   "reduce":"function(key, values, rereduce){  return sum(values);}"},
+                                   "reduce":"_sum"},
                         "file_state":{"map":"function(doc) {  emit(doc.state, 1);}",
-                                   "reduce":"function(key, values, rereduce){  return sum(values);}"},
+                                   "reduce":"_sum"},
                         "request":{"map":"function(doc) {  emit(doc.request_id, 1);}",
-                                   "reduce":"function(key, values, rereduce){  return sum(values);}"}
+                                   "reduce":"_sum"}
                         }
                  }
         db.commitOne(views)
@@ -88,7 +88,7 @@ class StageManagerAgent:
                  "language":"javascript",
                  "views":{
                         "request_state":{"map":"function(doc) {  emit(doc.state, 1);}",
-                                   "reduce":"function(key, values, rereduce){  return sum(values);}"}
+                                   "reduce":"_sum"}
                         }
                  }
         db.commitOne(views)
