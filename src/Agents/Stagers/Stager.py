@@ -1,12 +1,14 @@
 import datetime
 
 class Stager:
-    def __init__(self, db, logger):
+    def __init__(self, queuedb, statsdb, logger):
         """
-        A stager is set up with an instance of CMSCouchDB.Database and is 
+        A stager is set up with two instances of CMSCouchDB.Database (one 
+        pointing at the stage queue the other at the statistics database) and is 
         responsible for marking the files it stages as staged/failed.
         """
-        self.couch = db
+        self.queuedb = queuedb
+        self.statsdb = statsdb
         # TODO: replace with Logger #23
         self.logger = logger
         
@@ -15,6 +17,7 @@ class Stager:
         This is where the work is done. A list of files are passed into the 
         __call__ method and code is executed here to process each one.
         """
+        start_time = str(datetime.datetime.now())
         staged, incomplete, failed = self.command(files)
         
         msg = "%s files are staged, %s files are staging, %s files failed to stage"
@@ -22,18 +25,31 @@ class Stager:
         self.mark_good(staged)
         self.mark_incomplete(incomplete)
         self.mark_failed(failed)
+        #TODO: improve the stats dict, should include total size, timing etc.
+        end_time = str(datetime.datetime.now())
+        stats = {'good': len(staged), 'failed': len(failed),
+                 'start_time': start_time, 'end_time': end_time}
+        self.record_stats(stats)
         #TODO: calculate stats #24
-        self.couch.commit(viewlist=['stagemanager/file_state'])
+        self.queuedb.commit(viewlist=['stagemanager/file_state'])
         
     def command(self, files):
         return [], [], files
+    
+    def record_stats(self, stats):
+        """
+        Push a stats dict into Couch referencing the request (to be replicated
+        off site)
+        """
+        #TODO: refresh views
+        self.statsdb.commit(stats)
     
     def mark_good(self, files=[]):
         """
         Mark the list of files as staged
         """
         for i in files:
-            self.couch.queueDelete(i, viewlist=['stagemanager/file_state'])        
+            self.queuedb.queueDelete(i, viewlist=['stagemanager/file_state'])        
     
     def mark_failed(self, files=[]):
         """
@@ -43,7 +59,7 @@ class Stager:
         for i in files:
             i['state'] = 'acquired'
             i['retry_count'].append(now) 
-            self.couch.queue(i, viewlist=['stagemanager/file_state'])
+            self.queuedb.queue(i, viewlist=['stagemanager/file_state'])
     
     def mark_incomplete(self, files=[]):
         """
@@ -51,4 +67,4 @@ class Stager:
         """
         for i in files:
             i['state'] = 'acquired'
-            self.couch.queue(i, viewlist=['stagemanager/file_state'])
+            self.queuedb.queue(i, viewlist=['stagemanager/file_state'])

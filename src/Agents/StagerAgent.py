@@ -46,10 +46,13 @@ class StageManagerAgent:
         self.initiate_replication()
         self.save_config()
         
-        
+        #Create our stager
         factory = WMFactory('stager_factory', 'Agents.Stagers')
-        db = self.localcouch.connectDatabase('%s_stagequeue' % self.site)
-        self.stager = factory.loadObject(opts.stager, args=[db, self.logger], listFlag = True)
+        queuedb = self.localcouch.connectDatabase('%s_stagequeue' % self.site)
+        statsdb = self.localcouch.connectDatabase('%s_statistics' % self.site)
+        self.stager = factory.loadObject(opts.stager, 
+                                         args=[queuedb, statsdb, self.logger], 
+                                         listFlag = True)
         
     def save_config(self):
         pass
