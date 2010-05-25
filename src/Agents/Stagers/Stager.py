@@ -25,12 +25,12 @@ class Stager:
         self.mark_good(staged)
         self.mark_incomplete(incomplete)
         self.mark_failed(failed)
-        #TODO: improve the stats dict, should include total size, timing etc.
+        #TODO: improve the stats dict, should include total size, timing etc. #24
         end_time = str(datetime.datetime.now())
         stats = {'good': len(staged), 'failed': len(failed),
                  'start_time': start_time, 'end_time': end_time}
         self.record_stats(stats)
-        #TODO: calculate stats #24
+        
         self.queuedb.commit(viewlist=['stagemanager/file_state'])
         
     def command(self, files):
@@ -41,7 +41,7 @@ class Stager:
         Push a stats dict into Couch referencing the request (to be replicated
         off site)
         """
-        #TODO: refresh views
+        #TODO: refresh statistics views #24
         self.statsdb.commit(stats)
     
     def mark_good(self, files=[]):
