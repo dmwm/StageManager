@@ -20,6 +20,7 @@ import logging
 import os
 import pwd
 import sys
+import time, datetime
 from WMCore.Database.CMSCouch import CouchServer
 from WMCore.Lexicon import cmsname
 
@@ -28,9 +29,14 @@ class StageManagerClient:
         self.couch = CouchServer(dburl)
         self.logger = logger
         
-    def store_request(self, sites = [], stage_data = []):
+    def store_request(self, sites = [], stage_data = [], due_date=False):
         self.logger.info('Requesting %s' % stage_data)
         doc = {'data': stage_data, 'state': 'new'}
+        #If given a due_date we should respect that
+        if due_date:
+            doc['due'] = due_date
+        
+        logger.debug('request document: %s' % doc)
         
         for site in sites:
             db = self.couch.connectDatabase('%s_requests' % site.lower())
@@ -70,7 +76,10 @@ def do_options():
               action="store_true",
               default=False, 
               help="Be extremely verbose - print debugging statements")
-    
+    op.add_option("--due", 
+              dest="due",
+              default=False,
+              help="Add a due date to the request. Date format is DD/MM/YYYY")
     options, args = op.parse_args()
     
     logging.basicConfig(level=logging.WARNING)
@@ -81,6 +90,10 @@ def do_options():
         logger.setLevel(logging.DEBUG)
 
     logger.info('options: %s, args: %s' % (options, args))
+    
+    if options.due:
+        options.due = time.mktime(time.strptime("16/6/1981", "%d/%m/%Y"))
+        options.due
     
     if len(options.site) > 0:
         for site in options.site:
@@ -105,5 +118,5 @@ def do_options():
 if __name__ == '__main__':
     options, args, logger = do_options()
     client = StageManagerClient(options.couch, logger)
-    client.store_request(options.site, options.data)
+    client.store_request(options.site, options.data, options.due)
     
