@@ -143,7 +143,11 @@ class StageManagerAgent:
         if len(data['rows']) > 0:
             all_requests = sanitise_rows(data["rows"])
             # [{'timestamp': '2010-04-26 17:17:54.166314', '_rev': '1-cd935f55f4bc1ff4b54a2551bf37dc0e', '_id': 'f52a38ae152965593dbdf03a9800828a', 'data': ['/MinBias/Summer09-MC_31X_V3_7TeV-v1/GEN-SIM-RECO', '/QCD_pt_0_15/JobRobot_IDEAL_V9_JobRobot/GEN-SIM-RAW-RECO'], 'state': 'new'}]
+            now = time.mktime(datetime.datetime.now().timetuple())
             for request in all_requests:
+                if request.has_key('due') and now > request['due']:
+                    #This request has expired
+                    continue
                 # expand the files associated with the request
                 self.process_files(request['data'], request['_id'])
                 # mark the request as acquired
