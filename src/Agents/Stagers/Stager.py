@@ -19,7 +19,9 @@ class Stager:
         """
         start_time = str(datetime.datetime.now())
         staged, incomplete, failed = self.command(files)
-        
+        #TODO: Do we want to know the request id? It's not that meaningful given
+        # the asynchronous nature of populating the file list and the calls to 
+        # the stager __call__ method 
         msg = "%s files are staged, %s files are staging, %s files failed to stage"
         self.logger.info(msg % (len(staged), len(incomplete), len(failed)))
         self.mark_good(staged)
