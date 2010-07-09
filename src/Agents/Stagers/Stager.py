@@ -36,6 +36,14 @@ class Stager:
         self.queuedb.commit(viewlist=['stagemanager/file_state'])
         
     def command(self, files):
+        """
+        A null stager - files are never staged and just fail. This should be
+        over ridden by subclasses. Return staged, incomplete, failed files.
+            staged: file is on disk
+            incomplete: file has been requested but is not on the disk pool
+            failed: file could not be staged - may not be supported by MSS
+        """
+        
         return [], [], files
     
     def record_stats(self, stats):
