@@ -214,6 +214,9 @@ class StageManagerAgent:
             self.handleHTTPExcept(he, 'Could not commit data')    
 
     def process_stagequeue(self):
+        """
+        Send work to the stager
+        """
         db = self.localcouch.connectDatabase('%s/stagequeue' % self.site)
         #TODO: hit view for size of backlog, stop replication if over some limit #28
         data = {'rows':[]}
