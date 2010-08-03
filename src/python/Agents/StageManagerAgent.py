@@ -326,6 +326,9 @@ def do_options():
     return options, args, logger
 
 def sanitise_rows(rows):
+    """
+    Quick n dirty method to make a list of docs
+    """
     sanitised_data = []
     for i in rows:
         if 'doc' in i.keys():
