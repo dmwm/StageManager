@@ -132,6 +132,10 @@ class StageManagerAgent:
         self.process_stagequeue()
 
     def proces_requests(self):
+        """
+        Connect to the requests database, find the new requests and pass them on
+        to process_files to expand from PhEDEx.
+        """
         db = self.localcouch.connectDatabase('%s/requests' % self.site)
         # Get requests, mark them as acquired
         data = {'rows':[]}
