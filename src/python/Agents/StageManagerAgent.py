@@ -123,7 +123,11 @@ class StageManagerAgent:
         self.logger.info(he.message)
     
     def __call__(self):
-        # Probably makes sense for these to be subprocesses.
+        """
+        Expand new requests into files to stage and process the existing stage
+        queue.
+        TODO: parallelise these two calls using multiprocessing
+        """
         self.proces_requests()
         self.process_stagequeue()
 
