@@ -162,6 +162,10 @@ class StageManagerAgent:
 
       
     def process_files(self, stage_data = [], request_id=''):
+        """
+        Contact PhEDEx data service to get a list of files for a given request. 
+        TODO: use Service.PhEDEx
+        """
         # Need to clean up the input a bit
         for d in stage_data:
             # Need to pass in blocks
