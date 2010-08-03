@@ -113,6 +113,9 @@ class StageManagerAgent:
             self.handleHTTPExcept(he, 'Could not trigger replication for %s' % dbname)
             
     def handleHTTPExcept(self, he, message):
+        """
+        Some crude exception handling, just log the problem and move on...
+        """
         self.logger.error(message)
         self.logger.info(he.status)
         self.logger.info(he.result)
