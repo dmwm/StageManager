@@ -61,7 +61,9 @@ class StageManagerAgent:
         pass
     
     def setup_databases(self):
-        # Make sure the databases exist where we expect...
+        """
+        Make sure the databases exist where we expect
+        """
         for db in ['/stagequeue', '/statistics', '/requests']:
             db = self.site + db
             try: 
