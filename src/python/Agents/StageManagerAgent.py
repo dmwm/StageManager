@@ -76,6 +76,13 @@ class StageManagerAgent:
                 self.handleHTTPExcept(he, 'Could not contact %s remotely' % db)
         
     def initiate_replication(self):
+        """
+        Configure and trigger the continuouse replication of databases between
+        central and local databases. This will be done by CouchDB itself 'soon',
+        at which point this should be removed and replaced with appropriate 
+        configuration instructions.
+        """
+        
         #Set up tasty bi-directional replication for requests...
         
         dbname = '%s/requests' % (self.site)
