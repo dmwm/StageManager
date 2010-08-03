@@ -55,6 +55,9 @@ class StageManagerAgent:
                                          listFlag = True)
         
     def save_config(self):
+        """
+        Write the given configuration to a configuration database.
+        """
         pass
     
     def setup_databases(self):
