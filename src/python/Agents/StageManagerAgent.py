@@ -251,6 +251,9 @@ class StageManagerAgent:
             self.handleHTTPExcept(he, 'could not compact local database')
     
 def do_options():
+    """
+    Read the users arguments and set sensible defaults
+    """
     op = OptionParser()
     op.add_option("-u", "--local-url",
               dest="local", 
