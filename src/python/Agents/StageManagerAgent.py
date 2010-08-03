@@ -189,6 +189,10 @@ class StageManagerAgent:
         #id='29451522' origin_node='T2_US_Wisconsin' time_create='1250711698.34438'><replica group='DataOps' node_id='19' se='srm-cms.gridpp.rl.ac.uk' custodial='y' subscribed='y' node='T1_UK_RAL_MSS' time_create=''/></file>
         
         def file_sax_test(attrs):
+            """
+            Quick and dirty sax parser to get needed the information out of the  
+            XML from PhEDEx data service.
+            """
             checksum = attrs.get('checksum')
             f ={'_id': attrs.get('name'),
                 'bytes': int(attrs.get('bytes')),
