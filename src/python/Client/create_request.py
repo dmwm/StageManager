@@ -36,7 +36,7 @@ class StageManagerClient:
         doc = {'data': stage_data, 'state': 'new'}
         #If given a due_date we should respect that
         if due_date:
-            doc['due'] = due_date
+            doc['due'] = long(due_date)
         
         self.logger.debug('request document: %s' % doc)
         
@@ -141,8 +141,7 @@ def do_options():
     logger.info('options: %s, args: %s' % (options, args))
     
     if options.due:
-        options.due = time.mktime(time.strptime("16/6/1981", "%d/%m/%Y"))
-        options.due
+        options.due = time.mktime(time.strptime(options.due, "%d/%m/%Y"))
     
     if len(options.site) > 0:
         for site in options.site:

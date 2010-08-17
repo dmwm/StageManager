@@ -15,9 +15,12 @@ import sys
 import time
 import datetime
 import logging
+import copy
 
 from xml.sax import parseString
 from xml.sax.handler import ContentHandler 
+
+from Agents import AgentConfig
 
 class PhEDExHandler(ContentHandler):
     def __init__(self, function_dict):
@@ -28,43 +31,114 @@ class PhEDExHandler(ContentHandler):
             self.function_dict[name](attrs)
 
 class StageManagerAgent:
-    def __init__(self, site, localdb, remotedb, logger):
-        self.site = site.lower()
-        self.node = site.replace('_Buffer', '_MSS')
+    def __init__(self, options, logger, defaults):
+        self.defaults = defaults
+        self.logger = logger
+
+        # Format the site name
+        self.site = options.site.lower()
+        self.node = options.site.replace('_Buffer', '_MSS')
         if not self.node.endswith('_MSS'):
             self.node += '_MSS'
 
-        self.logger = logger
-            
-        self.localcouch = CouchServer(localdb)
-        self.remotecouch = CouchServer(remotedb)
-        
+        # Connect to local couch
+        self.localcouch = CouchServer(options.localdb)
+
+        # Attempt to load the configuration
+        self.configdb = self.localcouch.connectDatabase('%s/configuration' % self.site)
+        self.load_config()
+
+        # Now update configuration with command line parameters or defaults
+        for key in defaults:
+            storeName = defaults[key]['opts']['dest']
+            # Overwrite those options passed on the command line
+            cmdOption = getattr(options, storeName)
+            if cmdOption:
+                print "Updating config", storeName, cmdOption
+                self.config[storeName] = cmdOption
+            # Use defaults for any options which remain unset
+            if not self.config.has_key(storeName):
+                print "Using default config", storeName, defaults[key]['opts']['default']
+                self.config[storeName] = defaults[key]['opts']['default']
+
+        # Check waittime is sensible
+        if self.config['waittime'] < 31:
+            self.config['waittime'] = 31
+
+        # Save the active configuration
+        self.save_config()
+
+        # Finish up remote DB connection, and other config
+        self.remotecouch = CouchServer(self.config['remotedb'])
         self.logger.info('local databases: %s' % self.localcouch)
         self.logger.info('remote databases: %s' % self.remotecouch)
-        
         self.setup_databases()
         self.initiate_replication()
-        self.save_config()
-        
+
         #Create our stager
         factory = WMFactory('stager_factory', 'Agents.Stagers')
         queuedb = self.localcouch.connectDatabase('%s/stagequeue' % self.site)
         statsdb = self.localcouch.connectDatabase('%s/statistics' % self.site)
-        self.stager = factory.loadObject(opts.stager, 
-                                         args=[queuedb, statsdb, self.logger], 
+        requestdb = self.localcouch.connectDatabase('%s/requests' % self.site)
+
+        # Parse stager options
+        sopts = self.config['stageroptions'].split(",")
+        def OptFilter(opt):
+            return opt.find("=") > 0
+        sopts = filter(OptFilter, sopts)
+        stagerOptions = {}
+        for sopt in sopts:
+            tokens = sopt.split("=")
+            stagerOptions[tokens[0]] = tokens[1]
+
+        self.stager = factory.loadObject(self.config['stagerplugin'], 
+                                         args=[queuedb, statsdb, self.configdb, requestdb,
+                                               stagerOptions, self.logger], 
                                          listFlag = True)
         
     def save_config(self):
         """
         Write the given configuration to a configuration database.
         """
-        pass
-    
+        # Load existing config (for rev) or create new document
+        dbConfig = {"_id" : "agent"}
+        if self.configdb.documentExists("agent"):
+            dbConfig = self.configdb.document("agent")
+
+        # Save all persistable parameters
+        for key in self.defaults:
+            if self.defaults[key]['persist'] == True:
+                storeName = self.defaults[key]['opts']['dest']
+                if self.config.has_key(storeName):
+                    dbConfig[storeName] = self.config[storeName]
+        self.configdb.commitOne(dbConfig)
+
+    def load_config(self):
+        """
+        Reads the configuration from the configuration database.
+        """
+        if not hasattr(self, "config"):
+            self.config = {}
+
+        # Check a configuration document exists
+        if not self.configdb.documentExists("agent"):
+            return
+ 
+        # Load existing configuration
+        dbConfig = self.configdb.document("agent")
+        for key in self.defaults:
+            if self.defaults[key]['persist'] == True:
+                storeName = self.defaults[key]['opts']['dest']
+                # We check the key is present in DB to ensure we don't attempt
+                # to load a newly defined configuration item
+                if dbConfig.has_key(storeName):
+                    self.config[storeName] = dbConfig[storeName]
+
     def setup_databases(self):
         """
         Make sure the databases exist where we expect
         """
-        for db in ['/stagequeue', '/statistics', '/requests']:
+        for db in ['/stagequeue', '/statistics', '/requests', '/configuration']:
             db = self.site + db
             try: 
                 self.localcouch.connectDatabase(db)
@@ -128,8 +202,37 @@ class StageManagerAgent:
         queue.
         TODO: parallelise these two calls using multiprocessing
         """
+        # Load the config from DB, in case it has been updated
+        self.load_config()
+
+        # Process stuff!
         self.proces_requests()
         self.process_stagequeue()
+
+    def check_requests_done(self):
+        """
+        Checks requests that are complete, and marks them as such
+        Should it delete them like done files?
+        """
+        db = self.localcouch.connectDatabase('%s/requests' % self.site)
+        # Get requests, mark them as acquired
+        data = {'rows':[]}
+        try:
+            data = db.loadView('requests', 'request_state', {'reduce':False, 'include_docs':True, 'key':'acquired'})
+        except httplib.HTTPException, he:
+            self.handleHTTPExcept(he, 'could not retrieve request_state view')
+            sys.exit(1)
+        if len(data['rows']) > 0:
+            all_requests = sanitise_rows(data["rows"])
+            for request in all_requests:
+                if request.has_key('done_files') and request.has_key('total_files'):
+                    if request['done_files'] == request['total_files']:
+                        self.logger.info("Request %s done" % request['data'])
+                        request['state'] = 'done'
+                        request['done_timestamp'] = str(datetime.datetime.now())
+                        db.queue(request)
+            db.commit(viewlist=['requests/request_state'])
+
 
     def proces_requests(self):
         """
@@ -150,16 +253,18 @@ class StageManagerAgent:
             now = time.mktime(datetime.datetime.now().timetuple())
             for request in all_requests:
                 if request.has_key('due') and now > request['due']:
-                    #This request has expired
-                    continue
-                # expand the files associated with the request
-                self.process_files(request['data'], request['_id'])
-                # mark the request as acquired
-                request['state'] = 'acquired'
-                request['accept_timestamp'] = str(datetime.datetime.now())
+                    #This request has expired - mark it
+                    request['state'] = 'expired'
+                    self.logger.info("Request for %s has expired" % request['data'])
+                else:
+                    # expand the files associated with the request
+                    numFiles = self.process_files(request['data'], request['_id'])
+                    # mark the request as acquired
+                    request['total_files'] = numFiles
+                    request['state'] = 'acquired'
+                    request['accept_timestamp'] = str(datetime.datetime.now())
                 db.queue(request)
         db.commit(viewlist=['requests/request_state'])
-
       
     def process_files(self, stage_data = [], request_id=''):
         """
@@ -188,6 +293,11 @@ class StageManagerAgent:
         #name='/store/mc/Summer09/MinBias900GeV/AODSIM/MC_31X_V3_AODSIM-v1/0021/F0C49EA2-FA88-DE11-B886-003048341A94.root' 
         #id='29451522' origin_node='T2_US_Wisconsin' time_create='1250711698.34438'><replica group='DataOps' node_id='19' se='srm-cms.gridpp.rl.ac.uk' custodial='y' subscribed='y' node='T1_UK_RAL_MSS' time_create=''/></file>
         
+        # Dirty namespacing hack to emulate a closure
+        # using only a builtin type
+        class Namespace: pass
+        ns = Namespace()
+        ns.foundFiles = 0
         def file_sax_test(attrs):
             """
             Quick and dirty sax parser to get needed the information out of the  
@@ -203,6 +313,7 @@ class StageManagerAgent:
                 }
             try:
                 db.queue(f, timestamp = True, viewlist=['stagequeue/file_state'])
+                ns.foundFiles += 1
             except httplib.HTTPException, he:
                 self.handleHTTPExcept(he, 'Could not commit data')
         
@@ -212,6 +323,9 @@ class StageManagerAgent:
             db.commit(viewlist=['stagequeue/file_state'])
         except httplib.HTTPException, he:
             self.handleHTTPExcept(he, 'Could not commit data')    
+            ns.foundFiles = 0
+
+        return ns.foundFiles
 
     def process_stagequeue(self):
         """
@@ -228,21 +342,22 @@ class StageManagerAgent:
         if len(data['rows']) > 0:
             data = sanitise_rows(data["rows"])
             if len(data) > 0:
-                if opts.maxstage < 0:
+                if self.config['maxstage'] <= 0:
                     self.stager(data)
                 else:
                     c = 0
                     lower = 0
-                    upper = opts.maxstage
+                    upper = self.config['maxstage']
                     while c < len(data):
                         #TODO: subprocess #31
-                        stager(data[lower:upper])
+                        self.stager(data[lower:upper])
                         c = upper
-                        lower = upper - 1
-                        upper += opts.maxstage 
+                        lower = upper
+                        upper += self.config['maxstage'] 
         else:
-            self.logger.info('Nothing to do, sleeping for five minutes')
-            time.sleep(270)            
+            self.logger.info('Nothing to do, sleeping for %s seconds' % (self.config['waittime'] - 30))
+            time.sleep(self.config['waittime'] - 30)            
+        self.check_requests_done()
         time.sleep(30)
         logger.debug('compacting database')
         try:
@@ -250,57 +365,23 @@ class StageManagerAgent:
         except httplib.HTTPException, he:
             self.handleHTTPExcept(he, 'could not compact local database')
     
-def do_options():
+def do_options(defaults):
     """
     Read the users arguments and set sensible defaults
     """
+    # Configure the options from the passed in list
     op = OptionParser()
-    op.add_option("-u", "--local-url",
-              dest="local", 
-              help="Local CouchDB url. Default address http://127.0.0.1:5984", 
-              default="http://127.0.0.1:5984")
-    op.add_option("-r", "--remote-url",
-              dest="remote", 
-              help="Remote CouchDB url. Default address cmsweb.cern.ch/stager", 
-              default="cmsweb.cern.ch/stager")
-    op.add_option("-s", "--site",
-              dest="site", 
-              help="Name of the site the agent is running for", 
-              default="T1_UK_RAL")
-    op.add_option("-v", "--verbose",
-              dest="verbose", 
-              action="store_true",
-              default=False, 
-              help="Be more verbose")
-    op.add_option("-d", "--debug",
-              dest="debug", 
-              action="store_true",
-              default=False, 
-              help="Be extremely verbose - print debugging statements")
-    op.add_option("-m", "--maxstage",
-              dest="maxstage", 
-              default=-1, 
-              type='int',
-              metavar="NUM",
-              help="Send the stager NUM requests at a time (default is -1: stage all files)")
-    op.add_option("-p", "--persist",
-              dest="persist", 
-              action="store_true",
-              default=False, 
-              help="Persist settings to the configuration DB")
-    op.add_option("-l", "--load",
-              dest="load", 
-              action="store_true",
-              default=False, 
-              help="Load settings from the configuration DB")
-    op.add_option("--stager",
-              dest="stager",
-              default="FakeStager",
-              help="name of stager")
-    
-    #TODO: persist options to local couch, pick them up #29
+    for key in defaults:
+        # Deep copy so we don't overwrite the default
+        cur = copy.deepcopy(defaults[key])
+        if cur['persist'] == True:
+            cur['opts']['default'] = None
+        op.add_option(key, cur['long'], **cur['opts'])
+
+    # Run the option parser
     options, args = op.parse_args()
     
+    # Configure the logger
     logging.basicConfig(level=logging.WARNING)
     logger = logging.getLogger('StageManager')
     if options.verbose:
@@ -308,23 +389,14 @@ def do_options():
     if options.debug:
         logger.setLevel(logging.DEBUG)
 
-    
-    if options.load:
-        # Load options from the DB
-        pass
-
+    # Sanity checks
     logger.info('options: %s, args: %s' % (options, args))
-
     if not cmsname(options.site):
         logger.warning('%s is not a valid CMS name!' % options.site)
         sys.exit(101)
     elif not options.site.startswith('T1'):
         logger.warning('%s is not a T1 site' % options.site)
         sys.exit(102)
-    
-    if options.persist:
-        # Write the options to the config DB
-        pass
     
     return options, args, logger
 
@@ -339,9 +411,9 @@ def sanitise_rows(rows):
     return sanitised_data
 
 if __name__ == '__main__':
-    opts, args, logger = do_options()
+    opts, args, logger = do_options(AgentConfig.defaultOptions)
     
-    agent = StageManagerAgent(opts.site, opts.local, opts.remote, logger)
+    agent = StageManagerAgent(opts, logger, AgentConfig.defaultOptions)
     
     #TODO: This should be a deamon #27
     while True:
