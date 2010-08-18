@@ -258,9 +258,10 @@ class StageManagerAgent:
                     self.logger.info("Request for %s has expired" % request['data'])
                 else:
                     # expand the files associated with the request
-                    numFiles = self.process_files(request['data'], request['_id'])
+                    ns = self.process_files(request['data'], request['_id'])
                     # mark the request as acquired
-                    request['total_files'] = numFiles
+                    request['total_files'] = ns.totalFiles
+                    request['total_size'] = ns.totalBytes
                     request['state'] = 'acquired'
                     request['accept_timestamp'] = str(datetime.datetime.now())
                 db.queue(request)
@@ -297,7 +298,8 @@ class StageManagerAgent:
         # using only a builtin type
         class Namespace: pass
         ns = Namespace()
-        ns.foundFiles = 0
+        ns.totalFiles = 0
+        ns.totalBytes = 0
         def file_sax_test(attrs):
             """
             Quick and dirty sax parser to get needed the information out of the  
@@ -313,7 +315,8 @@ class StageManagerAgent:
                 }
             try:
                 db.queue(f, timestamp = True, viewlist=['stagequeue/file_state'])
-                ns.foundFiles += 1
+                ns.totalFiles += 1
+                ns.totalBytes += f['bytes']
             except httplib.HTTPException, he:
                 self.handleHTTPExcept(he, 'Could not commit data')
         
@@ -323,9 +326,10 @@ class StageManagerAgent:
             db.commit(viewlist=['stagequeue/file_state'])
         except httplib.HTTPException, he:
             self.handleHTTPExcept(he, 'Could not commit data')    
-            ns.foundFiles = 0
+            ns.totalFiles = 0
+            ns.totalBytes = 0
 
-        return ns.foundFiles
+        return ns
 
     def process_stagequeue(self):
         """
