@@ -15,82 +15,12 @@ py create_request.py -v -d /MinBias/Summer09-MC_31X_V3_7TeV-v1/GEN-SIM-RECO \
 
 '''
 
+from Client import StageManagerClient
 from optparse import OptionParser
 import logging
-import os
-import pwd
 import sys
 import time, datetime
-from WMCore.Database.CMSCouch import CouchServer
 from WMCore.Lexicon import cmsname
-from WMCore.Services.Requests import Requests
-from WMCore.Wrappers import JsonWrapper
-
-class StageManagerClient:
-    def __init__(self, dburl, logger):
-        self.couch = CouchServer(dburl)
-        self.logger = logger
-        
-    def store_request(self, sites = [], stage_data = [], due_date=False):
-        self.logger.info('Requesting %s' % stage_data)
-        doc = {'data': stage_data, 'state': 'new'}
-        #If given a due_date we should respect that
-        if due_date:
-            doc['due'] = long(due_date)
-        
-        self.logger.debug('request document: %s' % doc)
-        
-        for site in sites:
-            # Check data is resident at site
-            if self.check_resident(site, stage_data):
-                db = self.couch.connectDatabase('%s/requests' % site.lower())
-                self.logger.info('queuing %s for %s' % (stage_data, site))
-                db.commit(doc, timestamp='create_timestamp')
-
-    def check_resident(self, site, stage_data):
-        """
-        Checks that the requested data is resident on the site
-        """
-        goodToGo = True
-
-        # Format site name
-        locSite = site.replace('_Buffer', '_MSS')
-        if not locSite.endswith('_MSS'):
-            locSite += '_MSS'
-
-        # Get block info from PhEDEx
-        phedex = Requests(url='https://cmsweb.cern.ch', dict={'accept_type':'application/json'})
-        for data in stage_data:
-            if data.find('#') < 0:
-                data = data + '*'
-            self.logger.debug('Checking data residency for %s at %s' % (data, locSite))
-            try:
-                pdata = phedex.get('/phedex/datasvc/json/prod/blockreplicas', {
-                                                           'dataset': data,
-                                                           'node': locSite})[0]
-            except httplib.HTTPException, he:
-                self.handleHTTPExcept(he, 'HTTPException for block: %s node: %s' % (data, locSite))
-
-            # Parse block info and check > 0 block exist
-            try:
-                if len(JsonWrapper.loads(pdata)['phedex']['block']) == 0:
-                   goodToGo = False
-                   self.logger.error('Block %s not resident at site %s' % (data, locSite))
-            except:
-                self.logger.debug('error loading json')
-                goodToGo = False
-
-        return goodToGo
-
-    def handleHTTPExcept(self, he, message):
-        """
-        Some crude exception handling, just log the problem and move on...
-        """
-        self.logger.error(message)
-        self.logger.info(he.status)
-        self.logger.info(he.result)
-        self.logger.info(he.reason)
-        self.logger.info(he.message)
 
 def do_options():
     op = OptionParser()
@@ -165,7 +95,7 @@ def do_options():
 
 if __name__ == '__main__':
     options, args, logger = do_options()
-    client = StageManagerClient(options.couch, logger)
+    client = StageManagerClient.StageManagerClient(options.couch, logger)
     client.store_request(options.site, options.data, options.due)
    
  
