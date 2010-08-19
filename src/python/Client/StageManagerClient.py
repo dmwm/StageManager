@@ -4,6 +4,7 @@ tools. Should be called by individual scripts
 to invoke functionality
 """
 
+import time
 from optparse import OptionParser
 from WMCore.Database.CMSCouch import CouchServer
 from WMCore.Services.Requests import Requests
@@ -78,6 +79,9 @@ class StageManagerClient:
                 if not options.nodetail:
                     self.display_detail(results[key], options.data)
 
+    def format_epoch_time(self, t):
+        return time.strftime("%d-%m-%Y %H:%M:%S", time.gmtime(t))
+
     def display_detail(self, results, showData):
         """
         Display detail about each request
@@ -88,6 +92,16 @@ class StageManagerClient:
             i += 1
             if showData:
                 print "         Data:  %s" % str(res['data'])
+            if res['create_timestamp']:
+                print "         Created:   %s" % self.format_epoch_time(res['create_timestamp'])
+            if res['accept_timestamp']:
+                print "         Acquired:  %s" % self.format_epoch_time(res['accept_timestamp'])
+            if res['done_timestamp']:
+                print "         Completed: %s" % self.format_epoch_time(res['done_timestamp'])
+            if res['expired_timestamp']:
+                print "         Expired:   %s" % self.format_epoch_time(res['expired_timestamp'])
+            if res.has_key('due'):
+                print "         Due by:    %s" % self.format_epoch_time(res['due'])
             print "         Files: %s (%s / %s)" % (self.format_progress(res['files_pc']),
                                                     res['done_files'], res['total_files'])
             print "         Size:  %s (%s / %s)" % (self.format_progress(res['size_pc']),
@@ -152,12 +166,18 @@ class StageManagerClient:
                     request['files_pc'] = request['done_files'] * 100.0 / request['total_files']
                 if request['total_size'] > 0:
                     request['size_pc'] = request['done_size'] * 100.0 / request['total_size']
+                if not request.has_key('accept_timestamp'):
+                    request['accept_timestamp'] = None
+                if not request.has_key('done_timestamp'):
+                    request['done_timestamp'] = None
+                if not request.has_key('expired_timestamp'):
+                    request['expired_timestamp'] = None
                 processed.append(request)
         return processed
 
     def store_request(self, sites = [], stage_data = [], due_date=False):
         self.logger.info('Requesting %s' % stage_data)
-        doc = {'data': stage_data, 'state': 'new'}
+        doc = {'data': stage_data, 'state': 'new', 'create_timestamp' : long(time.time())}
         #If given a due_date we should respect that
         if due_date:
             doc['due'] = long(due_date)
@@ -169,7 +189,7 @@ class StageManagerClient:
             if self.check_resident(site, stage_data):
                 db = self.couch.connectDatabase('%s/requests' % site.lower())
                 self.logger.info('queuing %s for %s' % (stage_data, site))
-                db.commit(doc, timestamp='create_timestamp')
+                db.commit(doc)
 
     def check_resident(self, site, stage_data):
         """

@@ -229,7 +229,7 @@ class StageManagerAgent:
                     if request['done_files'] == request['total_files']:
                         self.logger.info("Request %s done" % request['data'])
                         request['state'] = 'done'
-                        request['done_timestamp'] = str(datetime.datetime.now())
+                        request['done_timestamp'] = long(time.time())
                         db.queue(request)
             db.commit(viewlist=['requests/request_state'])
 
@@ -250,11 +250,12 @@ class StageManagerAgent:
         if len(data['rows']) > 0:
             all_requests = sanitise_rows(data["rows"])
             # [{'timestamp': '2010-04-26 17:17:54.166314', '_rev': '1-cd935f55f4bc1ff4b54a2551bf37dc0e', '_id': 'f52a38ae152965593dbdf03a9800828a', 'data': ['/MinBias/Summer09-MC_31X_V3_7TeV-v1/GEN-SIM-RECO', '/QCD_pt_0_15/JobRobot_IDEAL_V9_JobRobot/GEN-SIM-RAW-RECO'], 'state': 'new'}]
-            now = time.mktime(datetime.datetime.now().timetuple())
+            now = time.time()
             for request in all_requests:
                 if request.has_key('due') and now > request['due']:
                     #This request has expired - mark it
                     request['state'] = 'expired'
+                    request['expired_timestamp'] = long(time.time())
                     self.logger.info("Request for %s has expired" % request['data'])
                 else:
                     # expand the files associated with the request
@@ -263,7 +264,7 @@ class StageManagerAgent:
                     request['total_files'] = ns.totalFiles
                     request['total_size'] = ns.totalBytes
                     request['state'] = 'acquired'
-                    request['accept_timestamp'] = str(datetime.datetime.now())
+                    request['accept_timestamp'] = long(time.time())
                 db.queue(request)
         db.commit(viewlist=['requests/request_state'])
       
