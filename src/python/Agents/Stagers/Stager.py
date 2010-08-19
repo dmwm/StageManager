@@ -73,7 +73,7 @@ class Stager:
                  'end_time': end_time}
 
         # CURRENTLY BROKEN - COMMENTED OUT BY JJ FOR NOW
-        #self.record_stats(stats)
+        self.record_stats(stats)
         
         self.queuedb.commit(viewlist=['stagequeue/file_state'])
         
@@ -121,7 +121,7 @@ class Stager:
         # Build up per request stats for staged/failed/incomplete. Views will be
         # used to aggregate this information. 
         # TODO: #104
-        for file in staged:  
+        for file in stats['good']:  
           if file['request_id'] in results.keys():
             results[file['request_id']]['good'] += 1
             results[file['request_id']]['staged_bytes'] += file['bytes']
@@ -135,7 +135,7 @@ class Stager:
             results[file['request_id']]['incomplete'] = 0
             results[file['request_id']]['incomplete_bytes'] = 0
         # .. and for failed    
-        for file in failed: # [] of {}'s, same as staged
+        for file in stats['failed']: # [] of {}'s, same as staged
           if file['request_id'] in results.keys():
             results[file['request_id']]['failed'] += 1
             results[file['request_id']]['failed_bytes'] += file['bytes']
@@ -149,7 +149,7 @@ class Stager:
             results[file['request_id']]['incomplete'] = 0
             results[file['request_id']]['incomplete_bytes'] = 0
         # and for incomplete    
-        for file in incomplete: # [] of {}'s, same as staged
+        for file in stats['incomplete']: # [] of {}'s, same as staged
           if file['request_id'] in results.keys():
             results[file['request_id']]['incomplete'] += 1
             results[file['request_id']]['incomplete_bytes'] += file['bytes']
