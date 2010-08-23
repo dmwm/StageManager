@@ -225,14 +225,33 @@ class StageManagerAgent:
         if len(data['rows']) > 0:
             all_requests = sanitise_rows(data["rows"])
             for request in all_requests:
-                if request.has_key('done_files') and request.has_key('total_files'):
-                    if request['done_files'] == request['total_files']:
+                # Get request status
+                request_progress = self.query_request_progress(request['_id'])
+                if request.has_key('total_files') and request_progress.has_key(request['_id']):
+                    if request_progress[request['_id']]['good'] == request['total_files']:
                         self.logger.info("Request %s done" % request['data'])
                         request['state'] = 'done'
-                        request['done_timestamp'] = long(time.time())
+                        request['done_timestamp'] = time.time()
                         db.queue(request)
             db.commit(viewlist=['requests/request_state'])
 
+    def query_request_progress(self, request):
+        """
+        Queries the progress of a request, or all requests, from the
+        statistics DB
+        """
+        db = self.localcouch.connectDatabase('%s/statistics' % self.site)
+        # Get requests, mark them as acquired
+        data = {'rows':[]}
+        try:
+            data = db.loadView('statistics', 'request_progress', {'key':request,'reduce':True, 'group_level':1})
+        except httplib.HTTPException, he:
+            self.handleHTTPExcept(he, 'could not retrieve request_progress view')
+            sys.exit(1)
+        if len(data['rows']) > 0:
+            all_progress = sanitise_reduced_rows(data["rows"])
+            return all_progress
+        return {}
 
     def proces_requests(self):
         """
@@ -255,7 +274,8 @@ class StageManagerAgent:
                 if request.has_key('due') and now > request['due']:
                     #This request has expired - mark it
                     request['state'] = 'expired'
-                    request['expired_timestamp'] = long(time.time())
+                    request['accept_timestamp'] = time.time()
+                    request['expired_timestamp'] = time.time()
                     self.logger.info("Request for %s has expired" % request['data'])
                 else:
                     # expand the files associated with the request
@@ -264,7 +284,7 @@ class StageManagerAgent:
                     request['total_files'] = ns.totalFiles
                     request['total_size'] = ns.totalBytes
                     request['state'] = 'acquired'
-                    request['accept_timestamp'] = long(time.time())
+                    request['accept_timestamp'] = time.time()
                 db.queue(request)
         db.commit(viewlist=['requests/request_state'])
       
@@ -413,6 +433,13 @@ def sanitise_rows(rows):
     for i in rows:
         if 'doc' in i.keys():
             sanitised_data.append(i['doc'])
+    return sanitised_data
+
+def sanitise_reduced_rows(rows):
+    sanitised_data = {}
+    for i in rows:
+        if 'key' in i.keys():
+            sanitised_data[i['key']] = i['value']
     return sanitised_data
 
 if __name__ == '__main__':

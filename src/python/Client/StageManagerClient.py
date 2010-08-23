@@ -3,7 +3,8 @@ Class which contains all code for client side
 tools. Should be called by individual scripts
 to invoke functionality
 """
-
+import sys
+import httplib
 import time
 from optparse import OptionParser
 from WMCore.Database.CMSCouch import CouchServer
@@ -57,6 +58,7 @@ class StageManagerClient:
         if options.expired:
             to_show['expired'] = "Expired"
 
+
         # Set defaults if nothing asked for
         if len(to_show) == 0:
             to_show = {'new' : "New", 'acquired' : "Acquired"}
@@ -66,9 +68,19 @@ class StageManagerClient:
         for key in to_show:
             results[key] = self.query_request_type(key)
 
+        # Create a list of all request IDs
+        req_ids = []
+        for key in to_show:
+            for req in results[key]:
+                req_ids.append(req['_id'])
+
+        # Get the results for all keys 
+        statistics = self.query_request_progress(req_ids) # Should be req_ids - not working...
+
         # We now have all results for the given key type, generate summaries
         summaries = {}
         for key in to_show:
+            self.combine_request_information(results[key], statistics)
             summaries[key] = self.create_summary(results[key])
 
         # Finally (phew) print the information
@@ -79,8 +91,33 @@ class StageManagerClient:
                 if not options.nodetail:
                     self.display_detail(results[key], options.data)
 
+    def combine_request_information(self, requests, statistics):
+        """
+        Combines the request document with any recorded statistics
+        """
+        for req in requests:
+            if req['_id'] in statistics.keys():
+                req['done_files'] = statistics[req['_id']]['good']
+                req['done_size'] = statistics[req['_id']]['staged_bytes']
+            if req['total_files'] > 0:
+                req['files_pc'] = req['done_files'] * 100.0 / req['total_files']
+            if req['total_size'] > 0:
+                req['size_pc'] = req['done_size'] * 100.0 / req['total_size']
+
     def format_epoch_time(self, t):
         return time.strftime("%d-%m-%Y %H:%M:%S", time.gmtime(t))
+
+    def compute_rate(self, result):
+        """
+        Computes the rate of a request
+        """
+        start = result['accept_timestamp']
+        end = time.time()
+        if result['done_timestamp']:
+            end = result['done_timestamp']
+        delta = end - start
+        if delta > 0:
+            return result['done_size'] / delta
 
     def display_detail(self, results, showData):
         """
@@ -107,6 +144,8 @@ class StageManagerClient:
             print "         Size:  %s (%s / %s)" % (self.format_progress(res['size_pc']),
                                                     self.format_size(res['done_size']),
                                                     self.format_size(res['total_size']))
+            if res['done_timestamp'] or res['accept_timestamp']:
+                print "         Rate: %s/s" % self.format_size(self.compute_rate(res))
 
     def display_summary(self, summary):
         """
@@ -135,6 +174,27 @@ class StageManagerClient:
                 'total_size' : totalsize, 'done_size' : donesize,
                 'files_pc' : filespc, 'size_pc' : donepc}
 
+    def query_request_progress(self, requests):
+        """
+        Queries the progress of a request, or all requests, from the
+        statistics DB
+        """
+        res = {}
+        db = self.couch.connectDatabase('%s/statistics' % self.site)
+        # Get requests, mark them as acquired
+        data = {'rows':[]}
+        try:
+            for id in requests:
+                data = db.loadView('statistics', 'request_progress', {'key':id, 'reduce':True, 'group_level':1})
+                if len(data['rows']) > 0:
+                    all_progress = self.sanitise_reduced_rows(data["rows"])
+                    for single_progress in all_progress:
+                        res[single_progress] = all_progress[single_progress]
+        except httplib.HTTPException, he:
+            self.handleHTTPExcept(he, 'could not retrieve request_progress view')
+            sys.exit(1)
+        return res
+
     def query_request_type(self, reqtype):
         """
         Gets all requests of given type, and fills in
@@ -154,18 +214,12 @@ class StageManagerClient:
             for request in all_requests:
                 if not request.has_key('total_files'):
                     request['total_files'] = 0
-                if not request.has_key('done_files'):
-                    request['done_files'] = 0
                 if not request.has_key('total_size'):
                     request['total_size'] = 0
-                if not request.has_key('done_size'):
-                    request['done_size'] = 0
+                request['done_files'] = 0
+                request['done_size'] = 0
                 request['files_pc'] = 0
                 request['size_pc'] = 0
-                if request['total_files'] > 0:
-                    request['files_pc'] = request['done_files'] * 100.0 / request['total_files']
-                if request['total_size'] > 0:
-                    request['size_pc'] = request['done_size'] * 100.0 / request['total_size']
                 if not request.has_key('accept_timestamp'):
                     request['accept_timestamp'] = None
                 if not request.has_key('done_timestamp'):
@@ -177,10 +231,10 @@ class StageManagerClient:
 
     def store_request(self, sites = [], stage_data = [], due_date=False):
         self.logger.info('Requesting %s' % stage_data)
-        doc = {'data': stage_data, 'state': 'new', 'create_timestamp' : long(time.time())}
+        doc = {'data': stage_data, 'state': 'new', 'create_timestamp' : time.time()}
         #If given a due_date we should respect that
         if due_date:
-            doc['due'] = long(due_date)
+            doc['due'] = due_date
         
         self.logger.debug('request document: %s' % doc)
         
@@ -235,6 +289,13 @@ class StageManagerClient:
         self.logger.info(he.result)
         self.logger.info(he.reason)
         self.logger.info(he.message)
+
+    def sanitise_reduced_rows(self, rows):
+        sanitised_data = {}
+        for i in rows:
+            if 'key' in i.keys():
+                sanitised_data[i['key']] = i['value']
+        return sanitised_data
 
     def sanitise_rows(self, rows):
         """

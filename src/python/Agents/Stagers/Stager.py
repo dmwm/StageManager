@@ -203,36 +203,15 @@ class Stager:
 
         stats_doc['results'] = results
         
-        self.statsdb.commit(stats_doc, viewlist=['statistics/byte_report', 'statistics/success_report'])
+        self.statsdb.commit(stats_doc, viewlist=['statistics/byte_report', 'statistics/success_report',
+                                                 'statistics/request_progress'])
     
     def mark_good(self, files=[]):
         """
         Mark the list of files as staged
         """
-        # Track the number of files good in each request
-        requestUpdates = {}
         for i in files:
-            # Update good counts
-            if requestUpdates.has_key(i['request_id']):
-                requestUpdates[i['request_id']][0] += 1
-                requestUpdates[i['request_id']][1] += i['bytes']
-            else:
-                requestUpdates[i['request_id']] = [1, i['bytes']]
-            # Queue the good file for deletion from the queue
             self.queuedb.queueDelete(i, viewlist=['stagequeue/file_state'])        
-    
-        # Now update the requests
-        for i in requestUpdates:
-            doc = self.requestdb.document(i)
-            if doc.has_key('done_files'):
-                doc['done_files'] += requestUpdates[i][0]
-                doc['done_size'] += requestUpdates[i][1]
-            else:
-                doc['done_files'] = requestUpdates[i][0]
-                doc['done_size'] = requestUpdates[i][1]
-            self.requestdb.queue(doc, viewlist=['requests/request_state'])
-        if len(requestUpdates) > 0:
-            self.requestdb.commit(viewlist=['requests/request_state'])
 
     def mark_failed(self, files=[]):
         """
