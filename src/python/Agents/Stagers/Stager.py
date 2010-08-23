@@ -1,4 +1,5 @@
 import datetime
+import time
 
 class Stager:
     def __init__(self, queuedb, statsdb, configdb, requestdb, config, logger):
@@ -54,25 +55,44 @@ class Stager:
         """
         # Load config from DB if present
         self.load_config()
-        start_time = str(datetime.datetime.now())
+        init_time = datetime.datetime.utcnow()
+        start_time = str(init_time)
         staged, incomplete, failed = self.command(files)
         self.save_config()
-        stage_end_time = str(datetime.datetime.now())
+        finish_time = datetime.datetime.utcnow()
+        stage_end_time = str(finish_time)
+        stage_timestamp = time.time()
         msg = "%s files are staged, %s files are staging, %s files failed to stage"
         self.logger.info(msg % (len(staged), len(incomplete), len(failed)))
         self.mark_good(staged)
         self.mark_incomplete(incomplete)
         self.mark_failed(failed)
+
+        #Calculate stage time duration
+        stage_duration = finish_time - init_time
+        #Calculate stage time duration in seconds 
+        delta_t_seconds = stage_duration.seconds 
+        delta_t_seconds += stage_duration.microseconds/1000000.0 
+        delta_t_seconds += stage_duration.days * (24 * 3600) 
+        stage_duration_seconds = delta_t_seconds
+ 
+        if (len(staged) > 0):
+            ave_stage_time_per_file = delta_t_seconds/len(staged)
+        else:
+            ave_stage_time_per_file = 0
+
         #TODO: improve the stats dict, should include total size, timing etc. #24
-        end_time = str(datetime.datetime.now())
+        end_time = str(datetime.datetime.utcnow())
         stats = {'good': staged, 
                  'failed': failed, 
                  'incomplete': incomplete,
-                 'start_time': start_time,  
+                 'start_time': start_time, 
+                 'end_time': end_time, 
                  'stage_end_time': stage_end_time,
-                 'end_time': end_time}
+                 'stage_duration': stage_duration_seconds, 
+                 'ave_stage_time_per_file': ave_stage_time_per_file,
+                 'stage_timestamp' : stage_timestamp}
 
-        # CURRENTLY BROKEN - COMMENTED OUT BY JJ FOR NOW
         self.record_stats(stats)
         
         self.queuedb.commit(viewlist=['stagequeue/file_state'])
@@ -96,76 +116,94 @@ class Stager:
         """
         
         return [], [], files
-    
+
     def record_stats(self, stats):
         """
         Push a stats dict into Couch referencing the request (to be replicated
-        off site)
+        off site). Receives 3 lists of file dictionaries and 3 timestamps in a 
+        dictionary.
         """
         #TODO: refresh statistics views #24
         stats_doc = {'start_time': stats['start_time'], 
-                     'end_time': stats['end_time'], 
-                     'stage_end_time': stats['stage_end_time']}
+                     'end_time': stats['end_time'],
+                     'stage_end_time': stats['stage_end_time'], 
+                     'good': stats['good'], 
+                     'failed': stats['failed'], 
+                     'incomplete': stats['incomplete'], 
+                     'stage_duration': stats['stage_duration'], 
+                     'ave_stage_time_per_file': stats['ave_stage_time_per_file'], 
+                     'stage_timestamp' : stats['stage_timestamp']} # etc
         
         results ={}
-        # staged, failed and incomplete are a list of dicts, one dict per file, 
+        # staged is a list of dicts, one dict per file
         # a file dict looks like:
-        # {
-        #   '_id': attrs.get('name'), 
-        #   'bytes': int(attrs.get('bytes')),
-        #   'checksum': {checksum.split(':')[0]: checksum.split(':')[1]},
-        #   'state': 'new',
-        #   'retry_count': [],
-        #   'request_id': request_id
-        # }
-        # Build up per request stats for staged/failed/incomplete. Views will be
-        # used to aggregate this information. 
-        # TODO: #104
+        #{
+        # '_id': attrs.get('name'), 
+        # 'bytes': int(attrs.get('bytes')),
+        # 'checksum': {checksum.split(':')[0]: checksum.split(':')[1]},
+        # 'state': 'new',
+        # 'retry_count': [],
+        # 'request_id': request_id
+        #}
+        # The following probably should be a map function
+        # Build up per request stats for staged...
+        # TODO use default_dict here instead:
+        #http://docs.python.org/library/collections.html#collections.defaultdict
         for file in stats['good']:  
           if file['request_id'] in results.keys():
             results[file['request_id']]['good'] += 1
             results[file['request_id']]['staged_bytes'] += file['bytes']
           else:
             results[file['request_id']] = {}
-            results[file['request_id']]['timestamp'] = stats['stage_end_time']
             results[file['request_id']]['good'] = 1
             results[file['request_id']]['staged_bytes'] = file['bytes']
             results[file['request_id']]['failed'] = 0
             results[file['request_id']]['failed_bytes'] = 0
             results[file['request_id']]['incomplete'] = 0
             results[file['request_id']]['incomplete_bytes'] = 0
+            results[file['request_id']]['stage_duration'] = stats['stage_duration']
+            results[file['request_id']]['ave_stage_time_per_file'] = stats['ave_stage_time_per_file']
+            results[file['request_id']]['stage_timestamp'] = stats['stage_timestamp']
+
         # .. and for failed    
         for file in stats['failed']: # [] of {}'s, same as staged
           if file['request_id'] in results.keys():
             results[file['request_id']]['failed'] += 1
             results[file['request_id']]['failed_bytes'] += file['bytes']
           else:
+            # TODO use default_dict here instead
             results[file['request_id']] = {}
-            results[file['request_id']]['timestamp'] = stats['stage_end_time']
-            results[file['request_id']]['failed'] = 1
-            results[file['request_id']]['failed_bytes'] = file['bytes']
             results[file['request_id']]['good'] = 0
             results[file['request_id']]['staged_bytes'] = 0
             results[file['request_id']]['incomplete'] = 0
             results[file['request_id']]['incomplete_bytes'] = 0
+            results[file['request_id']]['failed'] = 1
+            results[file['request_id']]['failed_bytes'] = file['bytes']
+            results[file['request_id']]['stage_duration'] = stats['stage_duration']
+            results[file['request_id']]['ave_stage_time_per_file'] = stats['ave_stage_time_per_file']
+            results[file['request_id']]['stage_timestamp'] = stats['stage_timestamp']
+
         # and for incomplete    
         for file in stats['incomplete']: # [] of {}'s, same as staged
           if file['request_id'] in results.keys():
             results[file['request_id']]['incomplete'] += 1
             results[file['request_id']]['incomplete_bytes'] += file['bytes']
           else:
+            # TODO use default_dict here instead
             results[file['request_id']] = {}
-            results[file['request_id']]['timestamp'] = stats['stage_end_time']
             results[file['request_id']]['incomplete'] = 1
             results[file['request_id']]['incomplete_bytes'] = file['bytes']
             results[file['request_id']]['good'] = 0
             results[file['request_id']]['staged_bytes'] = 0
             results[file['request_id']]['failed'] = 0
             results[file['request_id']]['failed_bytes'] = 0
+            results[file['request_id']]['stage_duration'] = stats['stage_duration']
+            results[file['request_id']]['ave_stage_time_per_file'] = stats['ave_stage_time_per_file']
+            results[file['request_id']]['stage_timestamp'] = stats['stage_timestamp']
 
         stats_doc['results'] = results
-
-        self.statsdb.commit(stats)
+        
+        self.statsdb.commit(stats_doc, viewlist=['statistics/byte_report', 'statistics/success_report'])
     
     def mark_good(self, files=[]):
         """
