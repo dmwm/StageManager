@@ -1,7 +1,5 @@
 '''
 Poll a Couch instance for files to stage
-
-@author: metson
 '''
 from optparse import OptionParser
 from WMCore.Database.CMSCouch import CouchServer
@@ -18,14 +16,14 @@ import logging
 import copy
 
 from xml.sax import parseString
-from xml.sax.handler import ContentHandler 
+from xml.sax.handler import ContentHandler
 
 from Agents import AgentConfig
 
 class PhEDExHandler(ContentHandler):
     def __init__(self, function_dict):
         self.function_dict = function_dict
-        
+
     def startElement(self, name, attrs):
         if name in self.function_dict.keys():
             self.function_dict[name](attrs)
@@ -91,11 +89,11 @@ class StageManagerAgent:
             tokens = sopt.split("=")
             stagerOptions[tokens[0]] = tokens[1]
 
-        self.stager = factory.loadObject(self.config['stagerplugin'], 
+        self.stager = factory.loadObject(self.config['stagerplugin'],
                                          args=[queuedb, statsdb, self.configdb, requestdb,
-                                               stagerOptions, self.logger], 
+                                               stagerOptions, self.logger, self.site],
                                          listFlag = True)
-        
+
     def save_config(self):
         """
         Write the given configuration to a configuration database.
@@ -123,7 +121,7 @@ class StageManagerAgent:
         # Check a configuration document exists
         if not self.configdb.documentExists("agent"):
             return
- 
+
         # Load existing configuration
         dbConfig = self.configdb.document("agent")
         for key in self.defaults:
@@ -140,7 +138,7 @@ class StageManagerAgent:
         """
         for db in ['/stagequeue', '/statistics', '/requests', '/configuration']:
             db = self.site + db
-            try: 
+            try:
                 self.localcouch.connectDatabase(db)
             except httplib.HTTPException, he:
                 self.handleHTTPExcept(he, 'Could not contact %s locally' % db)
@@ -148,44 +146,44 @@ class StageManagerAgent:
                 self.remotecouch.connectDatabase(db)
             except httplib.HTTPException, he:
                 self.handleHTTPExcept(he, 'Could not contact %s remotely' % db)
-        
+
     def initiate_replication(self):
         """
         Configure and trigger the continuouse replication of databases between
         central and local databases. This will be done by CouchDB itself 'soon',
-        at which point this should be removed and replaced with appropriate 
+        at which point this should be removed and replaced with appropriate
         configuration instructions.
         """
-        
+
         #Set up tasty bi-directional replication for requests...
-        
+
         dbname = '%s/requests' % (self.site)
         dbname = urllib.quote_plus(dbname)
         print dbname, self.localcouch.url, self.remotecouch.url
         try:
-            self.localcouch.replicate('%s/%s' % (self.remotecouch.url, dbname), 
-                         '%s/%s' % (self.localcouch.url, dbname), 
+            self.localcouch.replicate('%s/%s' % (self.remotecouch.url, dbname),
+                         '%s/%s' % (self.localcouch.url, dbname),
                          True, True)
         except httplib.HTTPException, he:
             self.handleHTTPExcept(he, 'Could not trigger replication for %s' % dbname)
         try:
-            self.localcouch.replicate('%s/%s' % (self.localcouch.url, dbname), 
-                        '%s/%s' % (self.remotecouch.url, dbname), 
+            self.localcouch.replicate('%s/%s' % (self.localcouch.url, dbname),
+                        '%s/%s' % (self.remotecouch.url, dbname),
                          True, True)
         except httplib.HTTPException, he:
             self.handleHTTPExcept(he, 'Could not trigger replication for %s' % dbname)
-        
+
         # ... and one direction replication for statistics
         dbname = '%s/statistics' % (self.site)
         dbname = urllib.quote_plus(dbname)
-        print dbname   
+        print dbname
         try:
-            self.localcouch.replicate('%s/%s' % (self.localcouch.url, dbname), 
-                        '%s/%s' % (self.remotecouch.url, dbname), 
-                         True, True) 
+            self.localcouch.replicate('%s/%s' % (self.localcouch.url, dbname),
+                        '%s/%s' % (self.remotecouch.url, dbname),
+                         True, True)
         except httplib.HTTPException, he:
             self.handleHTTPExcept(he, 'Could not trigger replication for %s' % dbname)
-            
+
     def handleHTTPExcept(self, he, message):
         """
         Some crude exception handling, just log the problem and move on...
@@ -195,7 +193,7 @@ class StageManagerAgent:
         self.logger.info(he.result)
         self.logger.info(he.reason)
         self.logger.info(he.message)
-    
+
     def __call__(self):
         """
         Expand new requests into files to stage and process the existing stage
@@ -265,7 +263,7 @@ class StageManagerAgent:
             data = db.loadView('requests', 'request_state', {'reduce':False, 'include_docs':True, 'key':'new'})
         except httplib.HTTPException, he:
             self.handleHTTPExcept(he, 'could not retrieve request_state view')
-            sys.exit(1) 
+            sys.exit(1)
         if len(data['rows']) > 0:
             all_requests = sanitise_rows(data["rows"])
             # [{'timestamp': '2010-04-26 17:17:54.166314', '_rev': '1-cd935f55f4bc1ff4b54a2551bf37dc0e', '_id': 'f52a38ae152965593dbdf03a9800828a', 'data': ['/MinBias/Summer09-MC_31X_V3_7TeV-v1/GEN-SIM-RECO', '/QCD_pt_0_15/JobRobot_IDEAL_V9_JobRobot/GEN-SIM-RAW-RECO'], 'state': 'new'}]
@@ -287,10 +285,10 @@ class StageManagerAgent:
                     request['accept_timestamp'] = time.time()
                 db.queue(request)
         db.commit(viewlist=['requests/request_state'])
-      
+
     def process_files(self, stage_data = [], request_id=''):
         """
-        Contact PhEDEx data service to get a list of files for a given request. 
+        Contact PhEDEx data service to get a list of files for a given request.
         TODO: use Service.PhEDEx
         """
         # Need to clean up the input a bit
@@ -301,20 +299,20 @@ class StageManagerAgent:
         # TODO: make the phedex URL a configurable!
         phedex = Requests(url='https://cmsweb.cern.ch', dict={'accept_type':'text/xml'})
         self.logger.debug('Creating stage-in requests for %s' % self.node)
-        
+
         db = self.localcouch.connectDatabase('%s/stagequeue' % self.site)
-        
+
         try:
             data = phedex.get('/phedex/datasvc/xml/prod/filereplicas', {
-                                                    'block':stage_data, 
+                                                    'block':stage_data,
                                                     'node': self.node})[0]
         except httplib.HTTPException, he:
             self.handleHTTPExcept(he, 'HTTPException for block: %s node: %s' % (data, self.node))
-                
-        #<file checksum='cksum:2470571517' bytes='1501610356' 
-        #name='/store/mc/Summer09/MinBias900GeV/AODSIM/MC_31X_V3_AODSIM-v1/0021/F0C49EA2-FA88-DE11-B886-003048341A94.root' 
+
+        #<file checksum='cksum:2470571517' bytes='1501610356'
+        #name='/store/mc/Summer09/MinBias900GeV/AODSIM/MC_31X_V3_AODSIM-v1/0021/F0C49EA2-FA88-DE11-B886-003048341A94.root'
         #id='29451522' origin_node='T2_US_Wisconsin' time_create='1250711698.34438'><replica group='DataOps' node_id='19' se='srm-cms.gridpp.rl.ac.uk' custodial='y' subscribed='y' node='T1_UK_RAL_MSS' time_create=''/></file>
-        
+
         # Dirty namespacing hack to emulate a closure
         # using only a builtin type
         class Namespace: pass
@@ -323,7 +321,7 @@ class StageManagerAgent:
         ns.totalBytes = 0
         def file_sax_test(attrs):
             """
-            Quick and dirty sax parser to get needed the information out of the  
+            Quick and dirty sax parser to get needed the information out of the
             XML from PhEDEx data service.
             """
             checksum = attrs.get('checksum')
@@ -340,13 +338,13 @@ class StageManagerAgent:
                 ns.totalBytes += f['bytes']
             except httplib.HTTPException, he:
                 self.handleHTTPExcept(he, 'Could not commit data')
-        
+
         saxHandler = PhEDExHandler({'file': file_sax_test})
         parseString(data, saxHandler)
         try:
             db.commit(viewlist=['stagequeue/file_state'])
         except httplib.HTTPException, he:
-            self.handleHTTPExcept(he, 'Could not commit data')    
+            self.handleHTTPExcept(he, 'Could not commit data')
             ns.totalFiles = 0
             ns.totalBytes = 0
 
@@ -378,10 +376,10 @@ class StageManagerAgent:
                         self.stager(data[lower:upper])
                         c = upper
                         lower = upper
-                        upper += self.config['maxstage'] 
+                        upper += self.config['maxstage']
         else:
             self.logger.info('Nothing to do, sleeping for %s seconds' % (self.config['waittime'] - 30))
-            time.sleep(self.config['waittime'] - 30)            
+            time.sleep(self.config['waittime'] - 30)
         self.check_requests_done()
         time.sleep(30)
         logger.debug('compacting database')
@@ -389,7 +387,7 @@ class StageManagerAgent:
             db.compact(['stagequeue'])
         except httplib.HTTPException, he:
             self.handleHTTPExcept(he, 'could not compact local database')
-    
+
 def do_options(defaults):
     """
     Read the users arguments and set sensible defaults
@@ -405,7 +403,7 @@ def do_options(defaults):
 
     # Run the option parser
     options, args = op.parse_args()
-    
+
     # Configure the logger
     logging.basicConfig(level=logging.WARNING)
     logger = logging.getLogger('StageManager')
@@ -422,7 +420,7 @@ def do_options(defaults):
     elif not options.site.startswith('T1'):
         logger.warning('%s is not a T1 site' % options.site)
         sys.exit(102)
-    
+
     return options, args, logger
 
 def sanitise_rows(rows):
@@ -444,9 +442,9 @@ def sanitise_reduced_rows(rows):
 
 if __name__ == '__main__':
     opts, args, logger = do_options(AgentConfig.defaultOptions)
-    
+
     agent = StageManagerAgent(opts, logger, AgentConfig.defaultOptions)
-    
+
     #TODO: This should be a deamon #27
     while True:
         agent()

@@ -4,22 +4,54 @@
 <html lang="en">
 <head>
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-	<title>Plot test</title>
-        <center><H1>Stagemanager Statistics Plots</H1></center>
+	<title>Stagemanager Statistics Plots</title>
+        <div id="statsTitle"></div>
 	<link rel="stylesheet" href="../../style/main.css" type="text/css">
-  <script type="text/javascript" src="vendor/protovis/protovis-r3.2.js"></script>
+<script type="text/javascript" src="vendor/protovis/protovis-r3.2.js"></script>
+<script src="vendor/couchapp/loader.js"></script>
+<script type="text/javascript" src="vendor/plots/plots.js"></script>
+<script type="text/javascript" src="stats_plots_per_id.js"></script>
+<script type="text/javascript" src="title.js"></script>
+<script type="text/javascript">
 
+genTitle();// print title
+
+$(document).ready(function () {
+
+	$('#nav li').hover(
+		function () {
+			//show its submenu
+			$('ul', this).slideDown(100);
+
+		},
+		function () {
+			//hide its submenu
+			$('ul', this).slideUp(100);
+		}
+	);
+
+});
+</script>
+<link rel="stylesheet" href="style/stats_plots.css" type="text/css">
 </head>
 <body>
+<ul id="nav">
+        <li><a href="index.html">Back to main menu</a></li>
+        <li><a href="stats_plots_summed.html">Go to summed stats</a></li>
+	<li><a href="#">Jump to dataset </a>
+	<ul>
+                <div id="links"></div>
+	</ul>
+		<div class="clear"></div>
+	</li>
+</ul>
+
+<div class="clear"></div>
+<br/><br/><br/><br><br><br><br>
 
 <div id="links"></div>
 <div id="container"> </div>
 
 </body>
-<script src="vendor/couchapp/loader.js"></script>
-<script type="text/javascript" src="vendor/plots/plots.js"></script>
-<script type="text/javascript" src="stats_plots_per_id.js"></script>
-<script type="text/javascript">
 
-</script>
 </html>

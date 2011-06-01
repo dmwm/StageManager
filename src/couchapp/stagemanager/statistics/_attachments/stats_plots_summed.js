@@ -39,15 +39,19 @@ function addStageBytes(value){
 //===================================
 
 function plot(data) {
-    pie(data, "pie");
+    pie(data, "pie", ['Staged (Gbytes)','Incomplete (Gbytes)','Failed (Gbytes)']);
 }
 
 function plot2(data) {
-    pie(data, "pie2");
+    pie(data, "pie2", ['No. of staged files', 'No. of incomplete files', 'No. of failed files']);
 }
 
 function areaPlot(data, canvas){
-    area(data, canvas);
+    area(data, canvas, 'Total stage time (sec)');
+}
+
+function areaPlot2(data, canvas){
+    area(data, canvas, 'Average stage time per file (sec)');
 }
 
 function stackedPlot(data, canvas){
@@ -182,7 +186,7 @@ function loadData4() {
         }
       }
       areaPlot(stage_duration, "area2");
-      areaPlot(ave_stage_time, "area3");
+      areaPlot2(ave_stage_time, "area3");
     }
   });
 }

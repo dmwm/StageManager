@@ -1,28 +1,68 @@
-function pie(data, canvas) {
-  var w = 400,
-      h = 400,
-      r = w / 2,
-      a = pv.Scale.linear(0, pv.sum(data)).range(0, 2 * Math.PI);
-  var vis = new pv.Panel()
-      .canvas(canvas || 'pie')
-      .width(w)
-      .height(w);
-  vis.add(pv.Wedge)
-      .data(data.sort(pv.reverseOrder))
-      .bottom(w / 2)
-      .left(w / 2)
+function maxY(data){
 
-      .innerRadius(r - 40)
-      .outerRadius(r)
-      .angle(a)
-      .event("mouseover", function() this.innerRadius(0))
-      .event("mouseout", function() this.innerRadius(r - 40))
-    .anchor("center").add(pv.Label)
-      .visible(function(d) d > .15)
-      .textAngle(0)
-      .text(function(d) d.toFixed(2));
-  vis.render();
-};
+  var totElements = data.length;
+
+  var maxval = 0;
+  for(var i = 0; i < totElements; ++i){
+    if (data[i].y > maxval)  maxval = data[i].y;
+  }
+  return maxval;
+}
+
+function pie(data, canvas, labels) {
+
+ var w = 400,
+     h = 400,
+     r = w / 2;
+
+sum = pv.sum(data);
+
+var vis = new pv.Panel()
+    .canvas(canvas || 'pie')
+    .width(w + 10)
+    .height(w + 20);
+
+ vis.add(pv.Label)
+    .left(r)
+    .top(15)
+    .textAlign("center")
+    .text("Staged, incomplete, and failed data status");
+
+
+var wedge = vis.add(pv.Wedge)
+    .data(data)
+    .left(w/2)
+    .bottom(w/2)
+    .innerRadius(r - 80)
+    .outerRadius(r)
+    .angle(function(d) d / sum * 2 * Math.PI)
+    .event("mouseover", function() this.innerRadius(0))
+    .event("mouseout", function() this.innerRadius(r - 80));
+
+wedge.add(pv.Label)
+  .visible(function(d) d > .15)
+  .left(function() r/1.1 * Math.cos(wedge.midAngle()) + r)
+  .bottom(function() -r/1.1 * Math.sin(wedge.midAngle()) + r)
+  .textAlign("center")
+  .textBaseline("middle");
+
+wedge.add(pv.Label)
+  .visible(function(d) d > .15)
+  .textAngle(0)
+  .left(function() r/1.2 * Math.cos(wedge.midAngle()) + r)
+  .bottom(function() -r/1.2 * Math.sin(wedge.midAngle()) + r)
+  .textAlign("center")
+  .text(function(d) {
+    if (labels) {
+      return labels[this.index];
+    } else {
+      return d.toFixed(2);
+    }
+  });
+
+vis.render();
+
+}
 
 function bar(data, canvas) {
   /* Sizing and scales. */
@@ -76,13 +116,11 @@ function bar(data, canvas) {
   vis.render();
 }
 
-function area(data, canvas){
+function area(data, canvas, title){
 
   /* Sizing and scales. */
 
-  // var y_max = (Math.round(data[0].y) * 1.3);
-
-  var y_max = (data[0].y) * 1.3;
+  var y_max = maxY(data) * 1.2;
 
   var w = 500,
       h = 250,
@@ -94,10 +132,33 @@ function area(data, canvas){
       .canvas(canvas || 'area')
       .width(w)
       .height(h)
-      .bottom(20)
-      .left(20)
+      .bottom(60)
+      .left(60)
       .right(10)
-      .top(5);
+      .top(15);
+
+  /* Add title*/
+  vis.add(pv.Label)
+    .left(w/2)
+    .top(0)
+    .textAlign("center")
+    .text(title);
+
+  /* Put label on x axis*/
+  vis.add(pv.Label)
+    .left(w/2)
+    .bottom(-30)
+    .textAlign("center")
+    .text("Stage iteration");
+
+    /* Put label on y axis*/
+  vis.add(pv.Label)
+    .left(-30)
+    .top(h/2)
+    .textAlign("center")
+    .text("Time (secs)")
+    .textAngle(-Math.PI / 2);
+
 
   /* Y-axis and ticks. */
   vis.add(pv.Rule)
@@ -149,10 +210,32 @@ function stacked(data, canvas){
       .canvas(canvas || 'stacked')
       .width(w)
       .height(h)
-      .bottom(20)
-      .left(20)
+      .bottom(40)
+      .left(60)
       .right(10)
-      .top(5);
+      .top(20);
+
+  /* Title label */
+  vis.add(pv.Label)
+      .left(w/2)
+      .top(15)
+      .textAlign("center")
+      .text("Staged, incomplete, and failed files per iteration");
+
+  /* Put label on x axis*/
+  vis.add(pv.Label)
+    .left(w/2)
+    .bottom(-30)
+    .textAlign("center")
+    .text("Stage iteration");
+
+    /* Put label on y axis*/
+  vis.add(pv.Label)
+    .left(-30)
+    .bottom(h/2)
+    .textAlign("center")
+    .text("Number of files")
+    .textAngle(-Math.PI / 2);
 
   /* X-axis and ticks. */
   vis.add(pv.Rule)
@@ -184,3 +267,5 @@ function stacked(data, canvas){
 
 
 }
+
+

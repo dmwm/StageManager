@@ -4,14 +4,31 @@
 <html lang="en">
 <head>
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-	<title>Plot test</title>
-        <center><H1>Stagemanager Statistics Plots</H1></center>
+	<title>Stagemanager Statistics Plots</title>
+        <div id="statsTitle"></div>
 	<link rel="stylesheet" href="../../style/main.css" type="text/css">
   <script type="text/javascript" src="vendor/protovis/protovis-r3.2.js"></script>
+  <script src="vendor/couchapp/loader.js"></script>
+  <script type="text/javascript" src="title.js"></script>
+  <script type="text/javascript">
 
+  genTitle();// print title
+
+  </script>
+  <link rel="stylesheet" href="style/stats_plots.css" type="text/css">
 </head>
 <body>
-<a href="stats_plots_summed.html">Statistics plots summing over data from all request ids</a><br>
-<a href="stats_plots_per_id.html">Statistics plots per request id</a><br>
+
+<form name="jump">
+<p align="center">
+<select name="menu">
+<option value="stats_plots_summed.html">Statistics plots summing over data from all request ids</option>
+<option value="stats_plots_per_id.html">Statistics plots per request id</option>
+</select>
+<input type="button" onClick="location=document.jump.menu.options[document.jump.menu.selectedIndex].value;" value="GO">
+</p>
+</form>
+
+
 </body>
 </html>

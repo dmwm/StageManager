@@ -2,10 +2,10 @@ import datetime
 import time
 
 class Stager:
-    def __init__(self, queuedb, statsdb, configdb, requestdb, config, logger):
+    def __init__(self, queuedb, statsdb, configdb, requestdb, config, logger, site='T1_NOT_SET'):
         """
-        A stager is set up with two instances of CMSCouchDB.Database (one 
-        pointing at the stage queue the other at the statistics database) and is 
+        A stager is set up with two instances of CMSCouchDB.Database (one
+        pointing at the stage queue the other at the statistics database) and is
         responsible for marking the files it stages as staged/failed.
         """
         self.queuedb = queuedb
@@ -14,9 +14,10 @@ class Stager:
         self.requestdb = requestdb
         self.config = config
         self.save_config()
+        self.site = site
         # TODO: replace with Logger #23
         self.logger = logger
-        
+
     def load_config(self):
         """
         Attempts to load the config from the DB
@@ -49,7 +50,7 @@ class Stager:
 
     def __call__(self, files=[]):
         """
-        This is where the work is done. A list of files represented by a 
+        This is where the work is done. A list of files represented by a
         dictionary are passed into the __call__ method and code is executed here
         to process each one.
         """
@@ -70,12 +71,12 @@ class Stager:
 
         #Calculate stage time duration
         stage_duration = finish_time - init_time
-        #Calculate stage time duration in seconds 
-        delta_t_seconds = stage_duration.seconds 
-        delta_t_seconds += stage_duration.microseconds/1000000.0 
-        delta_t_seconds += stage_duration.days * (24 * 3600) 
+        #Calculate stage time duration in seconds
+        delta_t_seconds = stage_duration.seconds
+        delta_t_seconds += stage_duration.microseconds/1000000.0
+        delta_t_seconds += stage_duration.days * (24 * 3600)
         stage_duration_seconds = delta_t_seconds
- 
+
         if (len(staged) > 0):
             ave_stage_time_per_file = delta_t_seconds/len(staged)
         else:
@@ -83,27 +84,28 @@ class Stager:
 
         #TODO: improve the stats dict, should include total size, timing etc. #24
         end_time = str(datetime.datetime.utcnow())
-        stats = {'good': staged, 
-                 'failed': failed, 
+        stats = {'good': staged,
+                 'failed': failed,
                  'incomplete': incomplete,
-                 'start_time': start_time, 
-                 'end_time': end_time, 
+                 'start_time': start_time,
+                 'end_time': end_time,
                  'stage_end_time': stage_end_time,
-                 'stage_duration': stage_duration_seconds, 
+                 'stage_duration': stage_duration_seconds,
                  'ave_stage_time_per_file': ave_stage_time_per_file,
-                 'stage_timestamp' : stage_timestamp}
+                 'stage_timestamp' : stage_timestamp,
+                 'site' : self.site}
 
         self.record_stats(stats)
-        
+
         self.queuedb.commit(viewlist=['stagequeue/file_state'])
-        
+
     def command(self, files):
         """
         A null stager - files are never staged and just fail. This should be
-        over ridden by subclasses. Return lists of staged, incomplete, failed 
+        over ridden by subclasses. Return lists of staged, incomplete, failed
         files as dictionaries. A file dict looks like:
         # {
-        #   '_id': attrs.get('name'), 
+        #   '_id': attrs.get('name'),
         #   'bytes': int(attrs.get('bytes')),
         #   'checksum': {checksum.split(':')[0]: checksum.split(':')[1]},
         #   'state': 'new',
@@ -114,28 +116,29 @@ class Stager:
             incomplete: file has been requested but is not on the disk pool
             failed: file could not be staged - may not be supported by MSS
         """
-        
+
         return [], [], files
 
     def record_stats(self, stats):
         """
         Push a stats dict into Couch referencing the request (to be replicated
-        off site). Receives 3 lists of file dictionaries and 3 timestamps in a 
+        off site). Receives 3 lists of file dictionaries and 3 timestamps in a
         dictionary.
         """
         #TODO: refresh statistics views #24
-        stats_doc = {'start_time': stats['start_time'], 
+        stats_doc = {'start_time': stats['start_time'],
                      'end_time': stats['end_time'],
-                     'stage_end_time': stats['stage_end_time'], 
-                     'stage_duration': stats['stage_duration'], 
-                     'ave_stage_time_per_file': stats['ave_stage_time_per_file'], 
-                     'stage_timestamp' : stats['stage_timestamp']} # etc
-        
+                     'stage_end_time': stats['stage_end_time'],
+                     'stage_duration': stats['stage_duration'],
+                     'ave_stage_time_per_file': stats['ave_stage_time_per_file'],
+                     'stage_timestamp' : stats['stage_timestamp'],
+                     'site' : stats['site']} # etc
+
         results ={}
         # staged is a list of dicts, one dict per file
         # a file dict looks like:
         #{
-        # '_id': attrs.get('name'), 
+        # '_id': attrs.get('name'),
         # 'bytes': int(attrs.get('bytes')),
         # 'checksum': {checksum.split(':')[0]: checksum.split(':')[1]},
         # 'state': 'new',
@@ -146,7 +149,7 @@ class Stager:
         # Build up per request stats for staged...
         # TODO use default_dict here instead:
         #http://docs.python.org/library/collections.html#collections.defaultdict
-        for file in stats['good']:  
+        for file in stats['good']:
           if file['request_id'] in results.keys():
             results[file['request_id']]['good'] += 1
             results[file['request_id']]['staged_bytes'] += file['bytes']
@@ -162,7 +165,7 @@ class Stager:
             results[file['request_id']]['ave_stage_time_per_file'] = stats['ave_stage_time_per_file']
             results[file['request_id']]['stage_timestamp'] = stats['stage_timestamp']
 
-        # .. and for failed    
+        # .. and for failed
         for file in stats['failed']: # [] of {}'s, same as staged
           if file['request_id'] in results.keys():
             results[file['request_id']]['failed'] += 1
@@ -180,7 +183,7 @@ class Stager:
             results[file['request_id']]['ave_stage_time_per_file'] = stats['ave_stage_time_per_file']
             results[file['request_id']]['stage_timestamp'] = stats['stage_timestamp']
 
-        # and for incomplete    
+        # and for incomplete
         for file in stats['incomplete']: # [] of {}'s, same as staged
           if file['request_id'] in results.keys():
             results[file['request_id']]['incomplete'] += 1
@@ -199,17 +202,17 @@ class Stager:
             results[file['request_id']]['stage_timestamp'] = stats['stage_timestamp']
 
         stats_doc['results'] = results
-        
+
         self.statsdb.commit(stats_doc, viewlist=['statistics/byte_report', 'statistics/success_report',
                                                  'statistics/stage_duration',
                                                  'statistics/request_progress'])
-    
+
     def mark_good(self, files=[]):
         """
         Mark the list of files as staged
         """
         for i in files:
-            self.queuedb.queueDelete(i, viewlist=['stagequeue/file_state'])        
+            self.queuedb.queueDelete(i, viewlist=['stagequeue/file_state'])
 
     def mark_failed(self, files=[]):
         """
@@ -218,9 +221,9 @@ class Stager:
         now = str(datetime.datetime.now())
         for i in files:
             i['state'] = 'acquired'
-            i['retry_count'].append(now) 
+            i['retry_count'].append(now)
             self.queuedb.queue(i, viewlist=['stagequeue/file_state'])
-    
+
     def mark_incomplete(self, files=[]):
         """
         Mark the list of files as acquired
