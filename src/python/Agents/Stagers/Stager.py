@@ -204,6 +204,7 @@ class Stager:
         stats_doc['results'] = results
         
         self.statsdb.commit(stats_doc, viewlist=['statistics/byte_report', 'statistics/success_report',
+                                                 'statistics/stage_duration',
                                                  'statistics/request_progress'])
     
     def mark_good(self, files=[]):
