@@ -127,9 +127,6 @@ class Stager:
         stats_doc = {'start_time': stats['start_time'], 
                      'end_time': stats['end_time'],
                      'stage_end_time': stats['stage_end_time'], 
-                     'good': stats['good'], 
-                     'failed': stats['failed'], 
-                     'incomplete': stats['incomplete'], 
                      'stage_duration': stats['stage_duration'], 
                      'ave_stage_time_per_file': stats['ave_stage_time_per_file'], 
                      'stage_timestamp' : stats['stage_timestamp']} # etc
