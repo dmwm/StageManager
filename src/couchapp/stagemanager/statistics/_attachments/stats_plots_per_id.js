@@ -44,7 +44,7 @@ function getDatasetName(){
                     id_to_dataset = []; // is now global. Messy, should change!
 		}
 		for (var i in data.rows) {
-                     id_to_dataset[data.rows[i].key] = data.rows[i].value[0];
+                     id_to_dataset[data.rows[i].key[0]] = data.rows[i].key[1][0];
 		}
 	    }
 	});
