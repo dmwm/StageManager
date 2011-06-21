@@ -67,11 +67,8 @@ class StageManagerAgent:
         self.save_config()
 
         # Finish up remote DB connection, and other config
-        self.remotecouch = CouchServer(self.config['remotedb'])
         self.logger.info('local databases: %s' % self.localcouch)
-        self.logger.info('remote databases: %s' % self.remotecouch)
         self.setup_databases()
-        self.initiate_replication()
 
         #Create our stager
         factory = WMFactory('stager_factory', 'Agents.Stagers')
@@ -146,43 +143,6 @@ class StageManagerAgent:
                 self.remotecouch.connectDatabase(db)
             except httplib.HTTPException, he:
                 self.handleHTTPExcept(he, 'Could not contact %s remotely' % db)
-
-    def initiate_replication(self):
-        """
-        Configure and trigger the continuouse replication of databases between
-        central and local databases. This will be done by CouchDB itself 'soon',
-        at which point this should be removed and replaced with appropriate
-        configuration instructions.
-        """
-
-        #Set up tasty bi-directional replication for requests...
-
-        dbname = '%s/requests' % (self.site)
-        dbname = urllib.quote_plus(dbname)
-        print dbname, self.localcouch.url, self.remotecouch.url
-        try:
-            self.localcouch.replicate('%s/%s' % (self.remotecouch.url, dbname),
-                         '%s/%s' % (self.localcouch.url, dbname),
-                         True, True)
-        except httplib.HTTPException, he:
-            self.handleHTTPExcept(he, 'Could not trigger replication for %s' % dbname)
-        try:
-            self.localcouch.replicate('%s/%s' % (self.localcouch.url, dbname),
-                        '%s/%s' % (self.remotecouch.url, dbname),
-                         True, True)
-        except httplib.HTTPException, he:
-            self.handleHTTPExcept(he, 'Could not trigger replication for %s' % dbname)
-
-        # ... and one direction replication for statistics
-        dbname = '%s/statistics' % (self.site)
-        dbname = urllib.quote_plus(dbname)
-        print dbname
-        try:
-            self.localcouch.replicate('%s/%s' % (self.localcouch.url, dbname),
-                        '%s/%s' % (self.remotecouch.url, dbname),
-                         True, True)
-        except httplib.HTTPException, he:
-            self.handleHTTPExcept(he, 'Could not trigger replication for %s' % dbname)
 
     def handleHTTPExcept(self, he, message):
         """
