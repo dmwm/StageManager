@@ -43,7 +43,7 @@ class StageManagerAgent:
         self.localcouch = CouchServer(options.localdb)
 
         # Attempt to load the configuration
-        self.configdb = self.localcouch.connectDatabase('%s/configuration' % self.site)
+        self.configdb = self.localcouch.connectDatabase('%s_configuration' % self.site)
         self.load_config()
 
         # Now update configuration with command line parameters or defaults
@@ -71,9 +71,9 @@ class StageManagerAgent:
 
         #Create our stager
         factory = WMFactory('stager_factory', 'Agents.Stagers')
-        queuedb = self.localcouch.connectDatabase('%s/stagequeue' % self.site)
-        statsdb = self.localcouch.connectDatabase('%s/statistics' % self.site)
-        requestdb = self.localcouch.connectDatabase('%s/requests' % self.site)
+        queuedb = self.localcouch.connectDatabase('%s_stagequeue' % self.site)
+        statsdb = self.localcouch.connectDatabase('%s_statistics' % self.site)
+        requestdb = self.localcouch.connectDatabase('%s_requests' % self.site)
 
         # Parse stager options
         sopts = self.config['stageroptions'].split(",")
@@ -156,7 +156,7 @@ class StageManagerAgent:
         Checks requests that are complete, and marks them as such
         Should it delete them like done files?
         """
-        db = self.localcouch.connectDatabase('%s/requests' % self.site)
+        db = self.localcouch.connectDatabase('%s_requests' % self.site)
         # Get requests, mark them as acquired
         data = {'rows':[]}
         try:
@@ -182,7 +182,7 @@ class StageManagerAgent:
         Queries the progress of a request, or all requests, from the
         statistics DB
         """
-        db = self.localcouch.connectDatabase('%s/statistics' % self.site)
+        db = self.localcouch.connectDatabase('%s_statistics' % self.site)
         # Get requests, mark them as acquired
         data = {'rows':[]}
         try:
@@ -200,7 +200,7 @@ class StageManagerAgent:
         Connect to the requests database, find the new requests and pass them on
         to process_files to expand from PhEDEx.
         """
-        db = self.localcouch.connectDatabase('%s/requests' % self.site)
+        db = self.localcouch.connectDatabase('%s_requests' % self.site)
         # Get requests, mark them as acquired
         data = {'rows':[]}
         try:
@@ -244,7 +244,7 @@ class StageManagerAgent:
         phedex = Requests(url='https://cmsweb.cern.ch', dict={'accept_type':'text/xml'})
         self.logger.debug('Creating stage-in requests for %s' % self.node)
 
-        db = self.localcouch.connectDatabase('%s/stagequeue' % self.site)
+        db = self.localcouch.connectDatabase('%s_stagequeue' % self.site)
 
         try:
             data = phedex.get('/phedex/datasvc/xml/prod/filereplicas', {
@@ -298,7 +298,7 @@ class StageManagerAgent:
         """
         Send work to the stager
         """
-        db = self.localcouch.connectDatabase('%s/stagequeue' % self.site)
+        db = self.localcouch.connectDatabase('%s_stagequeue' % self.site)
         #TODO: hit view for size of backlog, stop replication if over some limit #28
         data = {'rows':[]}
         try:

@@ -180,7 +180,7 @@ class StageManagerClient:
         statistics DB
         """
         res = {}
-        db = self.couch.connectDatabase('%s/statistics' % self.site)
+        db = self.couch.connectDatabase('%s_statistics' % self.site)
         # Get requests, mark them as acquired
         data = {'rows':[]}
         try:
@@ -201,7 +201,7 @@ class StageManagerClient:
         missing info
         """
         processed = []
-        db = self.couch.connectDatabase('%s/requests' % self.site)
+        db = self.couch.connectDatabase('%s_requests' % self.site)
         # Get requests, mark them as acquired
         data = {'rows':[]}
         try:
@@ -241,7 +241,7 @@ class StageManagerClient:
         for site in sites:
             # Check data is resident at site
             if self.check_resident(site, stage_data):
-                db = self.couch.connectDatabase('%s/requests' % site.lower())
+                db = self.couch.connectDatabase('%s_requests' % site.lower())
                 self.logger.info('queuing %s for %s' % (stage_data, site))
                 db.commit(doc)
 
