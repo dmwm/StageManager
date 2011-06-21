@@ -15,7 +15,7 @@ py create_request.py -v -d /MinBias/Summer09-MC_31X_V3_7TeV-v1/GEN-SIM-RECO \
 
 '''
 
-from Client import StageManagerClient
+from StageManager.Client import StageManagerClient
 from optparse import OptionParser
 import logging
 import sys

@@ -1,6 +1,6 @@
 import subprocess
 import os
-from Agents.Stagers.Stager import Stager
+from StageManager.Agents.Stagers.Stager import Stager
 
 class ScriptStager(Stager):
     '''

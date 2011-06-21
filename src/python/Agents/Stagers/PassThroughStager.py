@@ -1,4 +1,4 @@
-from Agents.Stagers.Stager import Stager
+from StageManager.Agents.Stagers.Stager import Stager
 
 class PassThroughStager(Stager):
     '''

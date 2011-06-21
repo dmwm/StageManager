@@ -18,7 +18,7 @@ import copy
 from xml.sax import parseString
 from xml.sax.handler import ContentHandler
 
-from Agents import AgentConfig
+from StageManager.Agents import AgentConfig
 
 class PhEDExHandler(ContentHandler):
     def __init__(self, function_dict):

@@ -6,7 +6,7 @@ py create_request.py -s T1_UK_RAL -u 192.168.179.134:5985 --new --acquired --don
 
 '''
 
-from Client import StageManagerClient
+from StageManager.Client import StageManagerClient
 from optparse import OptionParser
 import logging
 import sys
