@@ -68,7 +68,6 @@ class StageManagerAgent:
 
         # Finish up remote DB connection, and other config
         self.logger.info('local databases: %s' % self.localcouch)
-        self.setup_databases()
 
         #Create our stager
         factory = WMFactory('stager_factory', 'Agents.Stagers')
@@ -128,21 +127,6 @@ class StageManagerAgent:
                 # to load a newly defined configuration item
                 if dbConfig.has_key(storeName):
                     self.config[storeName] = dbConfig[storeName]
-
-    def setup_databases(self):
-        """
-        Make sure the databases exist where we expect
-        """
-        for db in ['/stagequeue', '/statistics', '/requests', '/configuration']:
-            db = self.site + db
-            try:
-                self.localcouch.connectDatabase(db)
-            except httplib.HTTPException, he:
-                self.handleHTTPExcept(he, 'Could not contact %s locally' % db)
-            try:
-                self.remotecouch.connectDatabase(db)
-            except httplib.HTTPException, he:
-                self.handleHTTPExcept(he, 'Could not contact %s remotely' % db)
 
     def handleHTTPExcept(self, he, message):
         """
