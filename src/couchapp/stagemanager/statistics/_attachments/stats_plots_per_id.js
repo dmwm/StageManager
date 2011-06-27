@@ -1,4 +1,4 @@
-$db = $.couch.db("t1_uk_ral/statistics");
+$db = $.couch.db(sitename+"_statistics");
 
 id_to_dataset = [];// global, messy need to change
 
@@ -35,7 +35,7 @@ function stackedPlot(data, reqid){
 //========================================
 
 function getDatasetName(){
-    $db2 = $.couch.db("t1_uk_ral/requests");
+    $db2 = $.couch.db(sitename+"_requests");
         $db2.view("requests/request_data", {
             async: false,  //make a synchronous call!
 	    'reduce': false,

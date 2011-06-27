@@ -31,8 +31,7 @@
   
   $.couch.app = $.couch.app || function(appFun) {
     $(function() {
-      var dbname = document.location.href.split('/')[3];
-      var dname = unescape(document.location.href).split('/')[5];
+      var dname = unescape(document.location.href).split(dbname+'/')[1];
       var db = $.couch.db(dbname);
       var design = new Design(db, dname);
       

@@ -25,7 +25,7 @@
   var uuidCache = [];
 
   $.extend($.couch, {
-    urlPrefix: '',
+    urlPrefix: couchroot,
     activeTasks: function(options) {
       ajax(
         {url: this.urlPrefix + "/_active_tasks"},

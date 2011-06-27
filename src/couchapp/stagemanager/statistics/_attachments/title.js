@@ -1,4 +1,4 @@
- $db = $.couch.db("t1_uk_ral/statistics");
+$db = $.couch.db(sitename+"_statistics");
 
 //====================================================
 // Get the name of site
