@@ -70,7 +70,7 @@ class StageManagerAgent:
         self.logger.info('local databases: %s' % self.localcouch)
 
         #Create our stager
-        factory = WMFactory('stager_factory', 'Agents.Stagers')
+        factory = WMFactory('stager_factory', 'StageManager.Agents.Stagers')
         queuedb = self.localcouch.connectDatabase('%s_stagequeue' % self.site)
         statsdb = self.localcouch.connectDatabase('%s_statistics' % self.site)
         requestdb = self.localcouch.connectDatabase('%s_requests' % self.site)
