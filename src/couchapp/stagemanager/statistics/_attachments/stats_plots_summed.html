@@ -2,24 +2,25 @@
    "http://www.w3.org/TR/html4/strict.dtd">
 
 <html lang="en">
+
 <head>
-	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-	<title>Stagemanager Statistics Plots</title>
-        <div id="statsTitle"></div>
-	<link rel="stylesheet" href="../../style/main.css" type="text/css">
-  <script type="text/javascript" src="vendor/protovis/protovis-r3.2.js"></script>
-  <script src="vendor/couchapp/loader.js"></script>
-  <script type="text/javascript" src="vendor/plots/plots.js"></script>
-  <script type="text/javascript" src="stats_plots_summed.js"></script>
-  <script type="text/javascript" src="title.js"></script>
-  <script type="text/javascript">
-
-  genTitle();// print title
-
-  </script>
-  <link rel="stylesheet" href="style/stats_plots.css" type="text/css">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>Stagemanager Statistics Plots</title>
+<link rel="stylesheet" href="style/main.css" type="text/css">
+<link rel="stylesheet" href="style/stats_plots.css" type="text/css">
+<script type="text/javascript" src="vendor/protovis/protovis-r3.2.js"></script>
+<script type="text/javascript" src="vendor/couchapp/loader.js"></script>
+<script type="text/javascript" src="vendor/plots/plots.js"></script>
+<script type="text/javascript" src="stats_plots_summed.js"></script>
+<script type="text/javascript">
+$(document).ready(function () {
+        $("#statsTitle").append("<H1>Stagemanager "+sitename+" Statistics Plots</H1>")
+});
+</script>
 </head>
+
 <body>
+<div id="statsTitle"></div>
 <ul id="nav">
         <li><a href="index.html">Back to main menu</a></li>
         <li><a href="stats_plots_per_id.html">Go to stats per id</a></li>
@@ -28,15 +29,12 @@
 <div class="clear"></div>
 <br/><br/><br/><br><br><br><br>
 
-
 <div id="pie">This is div is called "pie", this text will be replaced by a plot.</div>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <div id="pie2">This is div is called "pie2", this text will be replaced by a plot</div><p>
 <div id="area2">This is div is called "area2" ,this text will be replaced by a plot </div>
 <div id="area3">This is div is called "area3",this text will be replaced by a plot </div><p>
 <div id="stacked">This is div is called "stacked" ,this text will be replaced by a plot </div>
-
 </body>
-
 
 </html>

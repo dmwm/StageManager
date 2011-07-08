@@ -2,23 +2,23 @@
    "http://www.w3.org/TR/html4/strict.dtd">
 
 <html lang="en">
+
 <head>
-	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-	<title>Stagemanager Statistics Plots</title>
-        <div id="statsTitle"></div>
-	<link rel="stylesheet" href="../../style/main.css" type="text/css">
-  <script type="text/javascript" src="vendor/protovis/protovis-r3.2.js"></script>
-  <script src="vendor/couchapp/loader.js"></script>
-  <script type="text/javascript" src="title.js"></script>
-  <script type="text/javascript">
-
-  genTitle();// print title
-
-  </script>
-  <link rel="stylesheet" href="style/stats_plots.css" type="text/css">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>Stagemanager Statistics Plots</title>
+<link rel="stylesheet" href="style/main.css" type="text/css">
+<link rel="stylesheet" href="style/stats_plots.css" type="text/css">
+<script type="text/javascript" src="vendor/protovis/protovis-r3.2.js"></script>
+<script type="text/javascript" src="vendor/couchapp/loader.js"></script>
+<script type="text/javascript">
+$(document).ready(function () {
+        $("#statsTitle").append("<H1>Stagemanager "+sitename+" Statistics Plots</H1>")
+});
+</script>
 </head>
-<body>
 
+<body>
+<div id="statsTitle"></div>
 <form name="jump">
 <p align="center">
 <select name="menu">

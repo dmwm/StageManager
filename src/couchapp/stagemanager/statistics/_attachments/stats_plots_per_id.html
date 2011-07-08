@@ -2,21 +2,21 @@
    "http://www.w3.org/TR/html4/strict.dtd">
 
 <html lang="en">
+
 <head>
-	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-	<title>Stagemanager Statistics Plots</title>
-        <div id="statsTitle"></div>
-	<link rel="stylesheet" href="../../style/main.css" type="text/css">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>Stagemanager Statistics Plots</title>
+<link rel="stylesheet" href="style/main.css" type="text/css">
+<link rel="stylesheet" href="style/stats_plots.css" type="text/css">
 <script type="text/javascript" src="vendor/protovis/protovis-r3.2.js"></script>
-<script src="vendor/couchapp/loader.js"></script>
+<script type="text/javascript" src="vendor/couchapp/loader.js"></script>
 <script type="text/javascript" src="vendor/plots/plots.js"></script>
 <script type="text/javascript" src="stats_plots_per_id.js"></script>
-<script type="text/javascript" src="title.js"></script>
 <script type="text/javascript">
 
-genTitle();// print title
-
 $(document).ready(function () {
+        // print title
+        $("#statsTitle").append("<H1>Stagemanager "+sitename+" Statistics Plots</H1>")
 
 	$('#nav li').hover(
 		function () {
@@ -29,16 +29,16 @@ $(document).ready(function () {
 			$('ul', this).slideUp(100);
 		}
 	);
-
 });
 </script>
-<link rel="stylesheet" href="style/stats_plots.css" type="text/css">
 </head>
+
 <body>
+<div id="statsTitle"></div>
 <ul id="nav">
         <li><a href="index.html">Back to main menu</a></li>
         <li><a href="stats_plots_summed.html">Go to summed stats</a></li>
-	<li><a href="#">Jump to dataset </a>
+	<li><a href="#">Jump to dataset</a>
 	<ul>
                 <div id="links"></div>
 	</ul>
