@@ -35,22 +35,22 @@ var wedge = vis.add(pv.Wedge)
     .bottom(w/2)
     .innerRadius(r - 80)
     .outerRadius(r)
-    .angle(function(d) d / sum * 2 * Math.PI)
-    .event("mouseover", function() this.innerRadius(0))
-    .event("mouseout", function() this.innerRadius(r - 80));
+    .angle(function(d) { return d / sum * 2 * Math.PI; })
+    .event("mouseover", function() { return this.innerRadius(0); })
+    .event("mouseout", function() { return this.innerRadius(r - 80); });
 
 wedge.add(pv.Label)
-  .visible(function(d) d > .15)
-  .left(function() r/1.1 * Math.cos(wedge.midAngle()) + r)
-  .bottom(function() -r/1.1 * Math.sin(wedge.midAngle()) + r)
+  .visible(function(d) { return d > .15; })
+  .left(function() { return r/1.1 * Math.cos(wedge.midAngle()) + r; })
+  .bottom(function() { return -r/1.1 * Math.sin(wedge.midAngle()) + r; })
   .textAlign("center")
   .textBaseline("middle");
 
 wedge.add(pv.Label)
-  .visible(function(d) d > .15)
+  .visible(function(d) { return d > .15; })
   .textAngle(0)
-  .left(function() r/1.2 * Math.cos(wedge.midAngle()) + r)
-  .bottom(function() -r/1.2 * Math.sin(wedge.midAngle()) + r)
+  .left(function() { return r/1.2 * Math.cos(wedge.midAngle()) + r; })
+  .bottom(function() { return -r/1.2 * Math.sin(wedge.midAngle()) + r; })
   .textAlign("center")
   .text(function(d) {
     if (labels) {
@@ -85,7 +85,7 @@ function bar(data, canvas) {
   /* The bars. */
   var bar = vis.add(pv.Bar)
       .data(data)
-      .top(function() y(this.index))
+      .top(function() { return y(this.index); })
       .height(y.range().band)
       .left(0)
       .width(x);
@@ -93,19 +93,19 @@ function bar(data, canvas) {
   /* The value label. */
   bar.anchor("right").add(pv.Label)
       .textStyle("white")
-      .text(function(d) d.toFixed(1));
+      .text(function(d) { return d.toFixed(1); });
 
   /* The variable label. */
   bar.anchor("left").add(pv.Label)
       .textMargin(5)
       .textAlign("right")
-      .text(function() "ABCDEFGHIJK".charAt(this.index));
+      .text(function() { return "ABCDEFGHIJK".charAt(this.index); });
 
   /* X-axis ticks. */
   vis.add(pv.Rule)
       .data(x.ticks(5))
       .left(x)
-      .strokeStyle(function(d) d ? "rgba(255,255,255,.3)" : "#000")
+      .strokeStyle(function(d) { return d ? "rgba(255,255,255,.3)" : "#000"; })
     .add(pv.Rule)
       .bottom(0)
       .height(5)
@@ -124,7 +124,7 @@ function area(data, canvas, title){
 
   var w = 500,
       h = 250,
-      x = pv.Scale.linear(data, function(d) d.x).range(0, w),
+      x = pv.Scale.linear(data, function(d) { return d.x; }).range(0, w),
       y = pv.Scale.linear(0, y_max).range(0, h);
 
   /* The root panel. */
@@ -164,14 +164,14 @@ function area(data, canvas, title){
   vis.add(pv.Rule)
       .data(y.ticks(5))
       .bottom(y)
-      .strokeStyle(function(d) d ? "#eee" : "#000")
+      .strokeStyle(function(d) { return d ? "#eee" : "#000"; })
     .anchor("left").add(pv.Label)
       .text(y.tickFormat);
 
   /* X-axis and ticks. */
   vis.add(pv.Rule)
       .data(x.ticks())
-      .visible(function(d) d)
+      .visible(function(d) { return d; })
       .left(x)
       .bottom(-5)
       .height(5)
@@ -182,8 +182,8 @@ function area(data, canvas, title){
   vis.add(pv.Area)
       .data(data)
       .bottom(1)
-      .left(function(d) x(d.x))
-      .height(function(d) y(d.y))
+      .left(function(d) { return x(d.x); })
+      .height(function(d) { return y(d.y); })
       .fillStyle("rgb(121,173,210)")
     .anchor("top").add(pv.Line)
       .lineWidth(3);
@@ -201,7 +201,7 @@ function stacked(data, canvas){
 
   var w = 600,
       h = 300,
-      //x = pv.Scale.linear(data, function(d) d[0].x).range(0, w),
+      //x = pv.Scale.linear(data, function(d) { return d[0].x; }).range(0, w),
       x = pv.Scale.linear(1, 10).range(0, w),
       y = pv.Scale.linear(0, y_max).range(0, h);
 
@@ -240,7 +240,7 @@ function stacked(data, canvas){
   /* X-axis and ticks. */
   vis.add(pv.Rule)
       .data(x.ticks())
-      .visible(function(d) d)
+      .visible(function(d) { return d; })
       .left(x)
       .bottom(-5)
       .height(5)
@@ -250,22 +250,17 @@ function stacked(data, canvas){
   /* The stack layout. */
   vis.add(pv.Layout.Stack)
       .layers(data)
-      .x(function(d) x(d.x))
-      .y(function(d) y(d.y))
+      .x(function(d) { return x(d.x); })
+      .y(function(d) { return y(d.y); })
     .layer.add(pv.Area);
 
   /* Y-axis and ticks. */
   vis.add(pv.Rule)
       .data(y.ticks(3))
       .bottom(y)
-      .strokeStyle(function(d) d ? "rgba(128,128,128,.2)" : "#000")
+      .strokeStyle(function(d) { return d ? "rgba(128,128,128,.2)" : "#000"; })
     .anchor("left").add(pv.Label)
       .text(y.tickFormat);
 
   vis.render();
-
-
-
 }
-
-
