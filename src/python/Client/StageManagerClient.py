@@ -255,17 +255,19 @@ class StageManagerClient:
         locSite = site.replace('_Buffer', '_MSS')
         if not locSite.endswith('_MSS'):
             locSite += '_MSS'
+        qParams = {'node': locSite}
 
         # Get block info from PhEDEx
         phedex = Requests(url='https://cmsweb.cern.ch', dict={'accept_type':'application/json'})
         for data in stage_data:
             if data.find('#') < 0:
-                data = data + '*'
+                qParams['dataset'] = data
+            else:
+                qParams['block'] = data
+
             self.logger.debug('Checking data residency for %s at %s' % (data, locSite))
             try:
-                pdata = phedex.get('/phedex/datasvc/json/prod/blockreplicas', {
-                                                           'dataset': data,
-                                                           'node': locSite})[0]
+                pdata = phedex.get('/phedex/datasvc/json/prod/blockreplicas', qParams)[0]
             except httplib.HTTPException, he:
                 self.handleHTTPExcept(he, 'HTTPException for block: %s node: %s' % (data, locSite))
 
