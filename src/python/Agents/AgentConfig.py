@@ -23,14 +23,6 @@ defaultOptions = {
               },
             "persist" : False
            },
-    "-r" : {"long" : "--remote-url",
-            "opts" :
-              {"dest" : "remotedb",
-               "help" : "Remote CouchDB url. Default address cmsweb.cern.ch/stager",
-               "default" : "http://cmsweb.cern.ch/stager"
-              },
-            "persist" : True
-           },
     "-s" : {"long" : "--site",
              "opts" :
                {"dest" : "site",
