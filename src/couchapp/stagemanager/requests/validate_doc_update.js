@@ -1,6 +1,4 @@
 function(newDoc, oldDoc, userCtx) {
-   log(toJSON(userCtx));
-
    // Determines the doc operation type
    var DOCOPS = { modif:0, creat:1, delet:2 };
    var docOp = oldDoc ? (newDoc._deleted === true ? DOCOPS.delet : DOCOPS.modif)
@@ -29,7 +27,7 @@ function(newDoc, oldDoc, userCtx) {
 
    // Gets whether the user is a global admin
    // name=null means requests coming from the local replicator, so we must allow
-   // (the cms couch auth does not allow name=null, so it affects only internal 
+   // (the cms couch auth does not allow name=null, so it affects only internal
    // replication requests)
    var isGlobalAdm = (userCtx.name === null)
                      || matchesRole("_admin","")
@@ -48,6 +46,8 @@ function(newDoc, oldDoc, userCtx) {
                  (docOp == DOCOPS.creat && matchesRole("stagerequest","group:dataops"));
 
    // Throw if user not validated
-   if(!allowed)
+   if(!allowed) {
+      log(toJSON(userCtx));
       throw {forbidden: "User not authorized for action."};
+   }
 }
