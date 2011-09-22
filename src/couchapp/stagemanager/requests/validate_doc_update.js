@@ -28,7 +28,12 @@ function(newDoc, oldDoc, userCtx) {
    }
 
    // Gets whether the user is a global admin
-   var isGlobalAdm = matchesRole("_admin","") || matchesRole("-admin","group:couchdb");
+   // name=null means requests coming from the local replicator, so we must allow
+   // (the cms couch auth does not allow name=null, so it affects only internal 
+   // replication requests)
+   var isGlobalAdm = (userCtx.name === null)
+                     || matchesRole("_admin","")
+                     || matchesRole("-admin","group:couchdb");
 
    //---------------------------------------------------
    // Authorization rules for StageManager's requests DB
