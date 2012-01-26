@@ -258,7 +258,7 @@ class StageManagerClient:
         qParams = {'node': locSite}
 
         # Get block info from PhEDEx
-        phedex = Requests(url='https://cmsweb.cern.ch', dict={'accept_type':'application/json'})
+        phedex = Requests(url='https://cmsweb.cern.ch', idict={'accept_type':'application/json'})
         for data in stage_data:
             if data.find('#') < 0:
                 qParams['dataset'] = data

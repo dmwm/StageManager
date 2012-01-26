@@ -234,7 +234,7 @@ class StageManagerAgent:
         TODO: use Service.PhEDEx
         """
         # TODO: make the phedex URL a configurable!
-        phedex = Requests(url='https://cmsweb.cern.ch', dict={'accept_type':'application/json'})
+        phedex = Requests(url='https://cmsweb.cern.ch', idict={'accept_type':'application/json'})
 
         totalFiles = 0
         totalBytes = 0
