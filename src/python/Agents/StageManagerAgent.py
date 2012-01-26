@@ -221,10 +221,8 @@ class StageManagerAgent:
                     self.logger.info("Request for %s has expired" % request['data'])
                 else:
                     # expand the files associated with the request
-                    ns = self.process_files(request['data'], request['_id'])
+                    request['total_files'], request['total_size'] = self.process_files(request['data'], request['_id'])
                     # mark the request as acquired
-                    request['total_files'] = ns.totalFiles
-                    request['total_size'] = ns.totalBytes
                     request['state'] = 'acquired'
                     request['accept_timestamp'] = time.time()
                 db.queue(request)
@@ -235,64 +233,62 @@ class StageManagerAgent:
         Contact PhEDEx data service to get a list of files for a given request.
         TODO: use Service.PhEDEx
         """
+        # TODO: make the phedex URL a configurable!
+        phedex = Requests(url='https://cmsweb.cern.ch', dict={'accept_type':'application/json'})
+
+        totalFiles = 0
+        totalBytes = 0
         # Need to clean up the input a bit
         for d in stage_data:
+            qParams = {'node': self.node}
             # Need to pass in blocks
             if d.find('#') < 0:
-                stage_data[stage_data.index(d)] = d + '*'
-        # TODO: make the phedex URL a configurable!
-        phedex = Requests(url='https://cmsweb.cern.ch', dict={'accept_type':'text/xml'})
-        self.logger.debug('Creating stage-in requests for %s' % self.node)
+                qParams['dataset'] = d
+            else:
+                qParams['block'] = d
 
-        db = self.localcouch.connectDatabase('%s_stagequeue' % self.site)
-
-        try:
-            data = phedex.get('/phedex/datasvc/xml/prod/filereplicas', {
-                                                    'block':stage_data,
-                                                    'node': self.node})[0]
-        except httplib.HTTPException, he:
-            self.handleHTTPExcept(he, 'HTTPException for block: %s node: %s' % (data, self.node))
-
-        #<file checksum='cksum:2470571517' bytes='1501610356'
-        #name='/store/mc/Summer09/MinBias900GeV/AODSIM/MC_31X_V3_AODSIM-v1/0021/F0C49EA2-FA88-DE11-B886-003048341A94.root'
-        #id='29451522' origin_node='T2_US_Wisconsin' time_create='1250711698.34438'><replica group='DataOps' node_id='19' se='srm-cms.gridpp.rl.ac.uk' custodial='y' subscribed='y' node='T1_UK_RAL_MSS' time_create=''/></file>
-
-        # Dirty namespacing hack to emulate a closure
-        # using only a builtin type
-        class Namespace: pass
-        ns = Namespace()
-        ns.totalFiles = 0
-        ns.totalBytes = 0
-        def file_sax_test(attrs):
-            """
-            Quick and dirty sax parser to get needed the information out of the
-            XML from PhEDEx data service.
-            """
-            checksum = attrs.get('checksum')
-            f ={'_id': attrs.get('name'),
-                'bytes': int(attrs.get('bytes')),
-                'checksum': {checksum.split(':')[0]: checksum.split(':')[1]},
-                'state': 'new',
-                'retry_count': [],
-                'request_id': request_id
-                }
             try:
-                db.queue(f, timestamp = True, viewlist=['stagequeue/file_state'])
-                ns.totalFiles += 1
-                ns.totalBytes += f['bytes']
+               pdata = phedex.get('/phedex/datasvc/json/prod/filereplicas', qParams)[0]
             except httplib.HTTPException, he:
-                self.handleHTTPExcept(he, 'Could not commit data')
+               self.handleHTTPExcept(he, 'HTTPException for block: %s node: %s' % (d, self.node))
 
-        saxHandler = PhEDExHandler({'file': file_sax_test})
-        parseString(data, saxHandler)
+            # Parse block info
+            try:
+                p = JsonWrapper.loads(pdata)
+                if len(p['phedex']['block']) == 0:
+                   self.logger.error('Block %s not resident at site %s' % (d, self.node))
+                else:
+                   self.logger.debug('Creating stage-in requests for %s' % self.node)
+                   db = self.localcouch.connectDatabase('%s_stagequeue' % self.site)
+                   for blk in p['phedex']['block']:
+                      self.logger.debug('Creating stage-in requests for block %s' % blk['name'])
+                      for fle in blk['file']:
+                         self.logger.debug('Creating stage-in requests for file %s' % fle['name'])
+                         checksum = fle['checksum']
+                         f = {'_id': fle['name'],
+                              'bytes': int(fle['bytes']),
+                              'checksum': {checksum.split(':')[0]: checksum.split(':')[1]},
+                              'state': 'new',
+                              'retry_count': [],
+                              'request_id': request_id
+                         }
+                         try:
+                            db.queue(f, timestamp = True, viewlist=['stagequeue/file_state'])
+                            totalFiles += 1
+                            totalBytes += f['bytes']
+                         except httplib.HTTPException, he:
+                            self.handleHTTPExcept(he, 'Could not commit data')
+            except:
+                self.logger.debug('error loading json')
+
         try:
             db.commit(viewlist=['stagequeue/file_state'])
         except httplib.HTTPException, he:
             self.handleHTTPExcept(he, 'Could not commit data')
-            ns.totalFiles = 0
-            ns.totalBytes = 0
+            totalFiles = 0
+            totalBytes = 0
 
-        return ns
+        return totalFiles, totalBytes
 
     def process_stagequeue(self):
         """
