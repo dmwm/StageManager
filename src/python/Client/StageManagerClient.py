@@ -287,10 +287,7 @@ class StageManagerClient:
         Some crude exception handling, just log the problem and move on...
         """
         self.logger.error(message)
-        self.logger.info(he.status)
-        self.logger.info(he.result)
-        self.logger.info(he.reason)
-        self.logger.info(he.message)
+        self.logger.info(he)
 
     def sanitise_reduced_rows(self, rows):
         sanitised_data = {}

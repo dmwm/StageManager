@@ -133,10 +133,7 @@ class StageManagerAgent:
         Some crude exception handling, just log the problem and move on...
         """
         self.logger.error(message)
-        self.logger.info(he.status)
-        self.logger.info(he.result)
-        self.logger.info(he.reason)
-        self.logger.info(he.message)
+        self.logger.info(he)
 
     def __call__(self):
         """
@@ -163,7 +160,7 @@ class StageManagerAgent:
             data = db.loadView('requests', 'request_state', {'reduce':False, 'include_docs':True, 'key':'acquired'})
         except httplib.HTTPException, he:
             self.handleHTTPExcept(he, 'could not retrieve request_state view')
-            sys.exit(1)
+
         if len(data['rows']) > 0:
             all_requests = sanitise_rows(data["rows"])
             for request in all_requests:
@@ -189,7 +186,7 @@ class StageManagerAgent:
             data = db.loadView('statistics', 'request_progress', {'key':request,'reduce':True, 'group_level':1})
         except httplib.HTTPException, he:
             self.handleHTTPExcept(he, 'could not retrieve request_progress view')
-            sys.exit(1)
+
         if len(data['rows']) > 0:
             all_progress = sanitise_reduced_rows(data["rows"])
             return all_progress
@@ -207,7 +204,7 @@ class StageManagerAgent:
             data = db.loadView('requests', 'request_state', {'reduce':False, 'include_docs':True, 'key':'new'})
         except httplib.HTTPException, he:
             self.handleHTTPExcept(he, 'could not retrieve request_state view')
-            sys.exit(1)
+
         if len(data['rows']) > 0:
             all_requests = sanitise_rows(data["rows"])
             # [{'timestamp': '2010-04-26 17:17:54.166314', '_rev': '1-cd935f55f4bc1ff4b54a2551bf37dc0e', '_id': 'f52a38ae152965593dbdf03a9800828a', 'data': ['/MinBias/Summer09-MC_31X_V3_7TeV-v1/GEN-SIM-RECO', '/QCD_pt_0_15/JobRobot_IDEAL_V9_JobRobot/GEN-SIM-RAW-RECO'], 'state': 'new'}]
@@ -301,7 +298,7 @@ class StageManagerAgent:
             data = db.loadView('stagequeue', 'file_state', {'reduce':False, 'include_docs':True})
         except httplib.HTTPException, he:
             self.handleHTTPExcept(he, 'could not retrieve file_state view')
-            sys.exit(1)
+
         if len(data['rows']) > 0:
             data = sanitise_rows(data["rows"])
             if len(data) > 0:
