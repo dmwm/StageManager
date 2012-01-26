@@ -319,11 +319,6 @@ class StageManagerAgent:
             time.sleep(self.config['waittime'] - 30)
         self.check_requests_done()
         time.sleep(30)
-        logger.debug('compacting database')
-        try:
-            db.compact(['stagequeue'])
-        except httplib.HTTPException, he:
-            self.handleHTTPExcept(he, 'could not compact local database')
 
 def do_options(defaults):
     """
