@@ -230,6 +230,8 @@ class StageManagerAgent:
         Contact PhEDEx data service to get a list of files for a given request.
         TODO: use Service.PhEDEx
         """
+        db = self.localcouch.connectDatabase('%s_stagequeue' % self.site)
+
         # TODO: make the phedex URL a configurable!
         phedex = Requests(url='https://cmsweb.cern.ch', idict={'accept_type':'application/json'})
 
@@ -256,7 +258,6 @@ class StageManagerAgent:
                    self.logger.error('Block %s not resident at site %s' % (d, self.node))
                 else:
                    self.logger.debug('Creating stage-in requests for %s' % self.node)
-                   db = self.localcouch.connectDatabase('%s_stagequeue' % self.site)
                    for blk in p['phedex']['block']:
                       self.logger.debug('Creating stage-in requests for block %s' % blk['name'])
                       for fle in blk['file']:
